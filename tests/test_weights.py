@@ -1,4 +1,4 @@
-"""Contratto del lettore safetensors: il parser si convalida chiudendo l'aritmetica."""
+"""The safetensors reader contract: the parser validates itself by closing the sums."""
 
 from __future__ import annotations
 
@@ -18,14 +18,14 @@ HEADER_ALIGNMENT = 8
 
 
 def encode_header(header: dict) -> bytes:
-    """Intestazione JSON riempita di spazi: la specifica allinea i dati a 8 byte."""
+    """JSON header padded with spaces: the spec aligns the data to 8 bytes."""
     encoded = json.dumps(header).encode()
     padding = -(len(encoded)) % HEADER_ALIGNMENT
     return encoded + b" " * padding
 
 
 def build_file(path, tensors, shift_tensor=None, truncate=0):
-    """Scrive un safetensors sintetico: intestazione JSON piu buffer contiguo."""
+    """Write a synthetic safetensors file: JSON header plus contiguous buffer."""
     header = {}
     buffer = bytearray()
     for name, (dtype, shape, payload) in tensors.items():
@@ -37,8 +37,8 @@ def build_file(path, tensors, shift_tensor=None, truncate=0):
             "data_offsets": [start, len(buffer)],
         }
     if shift_tensor:
-        # Sposta in avanti l'intervallo senza cambiarne la lunghezza: crea un buco
-        # nel buffer, che e esattamente cio che il controllo di contiguita deve vedere.
+        # Shift the range forward without changing its length: this creates a hole
+        # in the buffer, which is exactly what the contiguity check must catch.
         header[shift_tensor]["data_offsets"] = [
             offset + 2 for offset in header[shift_tensor]["data_offsets"]
         ]
@@ -97,7 +97,7 @@ def test_view_outlives_the_file_object(synthetic):
 
 
 def test_codes_refuse_a_dtype_that_is_not_sixteen_bit(synthetic):
-    with pytest.raises(SafetensorsError, match="non e a 16 bit"):
+    with pytest.raises(SafetensorsError, match="is not 16-bit"):
         SafetensorsFile(synthetic).codes("block.bias")
 
 
@@ -117,7 +117,7 @@ def test_a_gap_between_tensors_is_rejected(tmp_path, weights):
         shift_tensor="b",
     )
 
-    with pytest.raises(SafetensorsError, match="il buffer e a"):
+    with pytest.raises(SafetensorsError, match="the buffer is at"):
         SafetensorsFile(path)
 
 
@@ -128,7 +128,7 @@ def test_a_truncated_file_fails_the_closing_arithmetic(tmp_path, weights):
         truncate=2,
     )
 
-    with pytest.raises(SafetensorsError, match="l'aritmetica non chiude"):
+    with pytest.raises(SafetensorsError, match="arithmetic does not close"):
         SafetensorsFile(path)
 
 
@@ -140,7 +140,7 @@ def test_a_declared_shape_that_contradicts_the_byte_range_is_rejected(tmp_path):
     )
     path.write_bytes(len(header).to_bytes(8, "little") + header + payload.tobytes())
 
-    with pytest.raises(SafetensorsError, match="byte per 8 elementi"):
+    with pytest.raises(SafetensorsError, match="bytes for 8 elements"):
         SafetensorsFile(path)
 
 

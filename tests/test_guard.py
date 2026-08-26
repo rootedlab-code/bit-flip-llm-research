@@ -1,4 +1,4 @@
-"""Contratto delle guardie sull'host."""
+"""The contract of the host guards."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def test_require_free_space_returns_available_when_above_threshold(tmp_path):
 
 
 def test_require_free_space_raises_when_below_threshold(tmp_path):
-    with pytest.raises(InsufficientDiskSpaceError, match="soglia"):
+    with pytest.raises(InsufficientDiskSpaceError, match="threshold"):
         require_free_space(tmp_path, min_free_gib=1e9)
 
 
@@ -59,7 +59,7 @@ def test_immutable_accepts_unchanged_file(probe_file):
 
 
 def test_immutable_raises_when_content_changes(probe_file):
-    with pytest.raises(FileIntegrityError, match="e cambiato"), immutable([probe_file]):
+    with pytest.raises(FileIntegrityError, match="changed"), immutable([probe_file]):
         probe_file.write_bytes(PROBE_TEXT + b"!")
 
 

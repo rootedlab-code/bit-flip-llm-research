@@ -1,4 +1,4 @@
-"""Contratto dell'iniezione: riproducibile, uniforme, e sempre reversibile."""
+"""The injection contract: reproducible, uniform, and always reversible."""
 
 from __future__ import annotations
 
@@ -36,8 +36,8 @@ def test_faults_land_inside_the_tensors_they_name():
 
 
 def test_tensors_are_hit_in_proportion_to_their_size():
-    """Un tensore tre volte piu grande offre tre volte i bersagli,
-    non tre volte l'importanza."""
+    """A tensor three times larger offers three times the targets,
+    not three times the importance."""
     counts = Counter(flip.tensor for flip in random_flips(SIZES, 40_000, seed=3))
 
     assert counts["b"] / counts["a"] == pytest.approx(3.0, rel=0.05)
@@ -54,12 +54,12 @@ def test_zero_faults_is_a_valid_request():
 
 
 def test_a_negative_count_is_rejected():
-    with pytest.raises(ValueError, match="negativo"):
+    with pytest.raises(ValueError, match="negative fault count"):
         random_flips(SIZES, -1, seed=1)
 
 
 def test_an_empty_model_is_rejected():
-    with pytest.raises(ValueError, match="nessun tensore"):
+    with pytest.raises(ValueError, match="no tensor"):
         random_flips({}, 1, seed=1)
 
 
@@ -148,7 +148,7 @@ def test_the_torch_flip_matches_the_numpy_flip():
 
 
 def test_a_bfloat16_weight_promoted_to_float32_keeps_its_pattern_in_the_high_bits():
-    """La premessa che rende esatto il calcolo in float32 su GPU senza bf16 nativo."""
+    """The premise that makes float32 compute exact on GPUs without native bf16."""
     weights = torch.tensor([0.02, -1.5, 3.25], dtype=torch.bfloat16)
 
     promoted = weights.to(torch.float32)
@@ -188,7 +188,7 @@ def test_an_unsupported_dtype_is_refused():
     model = torch.nn.Linear(4, 3, bias=False).to(torch.float64)
 
     with (
-        pytest.raises(TypeError, match="non supportato"),
+        pytest.raises(TypeError, match="not supported"),
         flipped_model(model, [Flip("weight", 0, 14)]),
     ):
         pass

@@ -1,10 +1,10 @@
-"""Lettura dei pesi al livello dei bit, senza passare per i float.
+"""Reading weights at the bit level, without going through floats.
 
-Il formato safetensors e semplice abbastanza da leggerlo direttamente: otto byte di
-lunghezza, un'intestazione JSON, un buffer contiguo. Farlo a mano ha tre vantaggi che
-qui contano — accesso in mmap di sola lettura (Principio I), nessuna conversione che
-falsifichi i pattern di bit, e un'aritmetica che deve **chiudere esattamente** sulla
-dimensione del file, il che rende il parser il proprio collaudo.
+The safetensors format is simple enough to read directly: eight bytes of length, a
+JSON header, one contiguous buffer. Doing it by hand has three advantages that matter
+here -- read-only mmap access (Principle I), no conversion that would falsify the bit
+patterns, and arithmetic that must **close exactly** on the file size, which makes the
+parser its own test.
 """
 
 from __future__ import annotations
@@ -44,12 +44,12 @@ DTYPE_FORMATS = {"BF16": BF16, "F16": FP16}
 
 
 class SafetensorsError(ValueError):
-    """Il file non rispetta il formato dichiarato."""
+    """The file does not match the format it declares."""
 
 
 @dataclass(frozen=True)
 class TensorEntry:
-    """Un tensore nel buffer: dove sta e che forma ha."""
+    """A tensor in the buffer: where it lives and what shape it has."""
 
     name: str
     dtype: str
@@ -74,7 +74,7 @@ def _parse_header(path: Path) -> tuple[dict[str, TensorEntry], int, dict]:
     with path.open("rb") as handle:
         raw_length = handle.read(HEADER_LENGTH_BYTES)
         if len(raw_length) < HEADER_LENGTH_BYTES:
-            raise SafetensorsError(f"{path}: file troncato prima dell'intestazione")
+            raise SafetensorsError(f"{path}: file truncated before the header")
         header_length = int.from_bytes(raw_length, "little")
         header = json.loads(handle.read(header_length))
 
@@ -93,14 +93,15 @@ def _parse_header(path: Path) -> tuple[dict[str, TensorEntry], int, dict]:
 
 
 def _validate(entries: dict[str, TensorEntry], data_start: int, file_size: int) -> None:
+    """The parser's own test: the arithmetic must close on the file's bytes."""
     for entry in entries.values():
         item_size = ITEM_SIZES.get(entry.dtype)
         if item_size is None:
-            raise SafetensorsError(f"{entry.name}: dtype sconosciuto {entry.dtype}")
+            raise SafetensorsError(f"{entry.name}: unknown dtype {entry.dtype}")
         if entry.nbytes != entry.count * item_size:
             raise SafetensorsError(
-                f"{entry.name}: {entry.nbytes} byte per {entry.count} "
-                f"elementi da {item_size}"
+                f"{entry.name}: {entry.nbytes} bytes for {entry.count} "
+                f"elements of {item_size}"
             )
 
     ordered = sorted(entries.values(), key=lambda entry: entry.start)
@@ -108,19 +109,19 @@ def _validate(entries: dict[str, TensorEntry], data_start: int, file_size: int) 
     for entry in ordered:
         if entry.start != cursor:
             raise SafetensorsError(
-                f"{entry.name}: inizia a {entry.start}, il buffer e a {cursor}"
+                f"{entry.name}: starts at {entry.start}, the buffer is at {cursor}"
             )
         cursor = entry.end
 
     if data_start + cursor != file_size:
         raise SafetensorsError(
-            f"l'aritmetica non chiude: intestazione {data_start} + dati {cursor} "
-            f"!= {file_size} byte di file"
+            f"arithmetic does not close: header {data_start} + data {cursor} "
+            f"!= {file_size} bytes of file"
         )
 
 
 class SafetensorsFile:
-    """Accesso in sola lettura ai pattern di bit di un file safetensors."""
+    """Read-only access to the bit patterns of a safetensors file."""
 
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
@@ -130,7 +131,7 @@ class SafetensorsFile:
 
     @property
     def raw(self) -> np.memmap:
-        """Il file intero, mappato in sola lettura, creato al primo accesso."""
+        """The whole file, mapped read-only, created on first access."""
         if self._raw is None:
             self._raw = np.memmap(self.path, dtype=np.uint8, mode="r")
         return self._raw
@@ -146,19 +147,18 @@ class SafetensorsFile:
         return [entry for entry in self.tensors.values() if entry.format is fmt]
 
     def codes(self, name: str) -> np.ndarray:
-        """Pattern di bit del tensore, come uint16 di sola lettura, senza copia.
+        """The tensor's bit patterns, as read-only uint16, without copying.
 
-        La vista restituita tiene in vita la mappa che la sostiene: non c'e una
-        chiusura da ricordare, e nessun percorso in cui un array sopravviva al
-        proprio buffer.
+        The returned view keeps alive the mapping behind it: there is no close to
+        remember, and no path in which an array outlives its own buffer.
         """
         entry = self.tensors[name]
         if entry.format is None:
-            raise SafetensorsError(f"{name}: dtype {entry.dtype} non e a 16 bit")
+            raise SafetensorsError(f"{name}: dtype {entry.dtype} is not 16-bit")
         offset = self._data_start + entry.start
         if offset % 2:
             raise SafetensorsError(
-                f"{name}: offset dispari {offset}, non mappabile a uint16"
+                f"{name}: odd offset {offset}, cannot be mapped as uint16"
             )
         return self.raw[offset : offset + entry.nbytes].view(np.uint16)
 
@@ -173,12 +173,13 @@ HISTOGRAM_CHUNK = 1 << 24
 def code_histogram(
     file: SafetensorsFile, fmt: FloatFormat, chunk: int = HISTOGRAM_CHUNK
 ) -> np.ndarray:
-    """Conteggio esatto di ogni pattern di 16 bit presente nei tensori del formato.
+    """An exact count of every 16-bit pattern present in the format's tensors.
 
-    Per lo studio dei flip questo istogramma **e** il modello: l'esito di un flip
-    dipende dal pattern, non da quale peso lo porti. Mezzo miliardo di parametri si
-    riducono cosi a 65.536 celle senza perdere una sola informazione utile, e ogni
-    statistica per posizione di bit diventa esatta invece che campionata.
+    For the study of flips this histogram **is** the model: the outcome of a flip
+    depends on the pattern, not on which weight carries it. Half a billion parameters
+    therefore collapse into 65,536 cells without losing a single useful piece of
+    information, and every per-bit-position statistic becomes exact rather than
+    sampled.
     """
     counts = np.zeros(CODE_SPACE, dtype=np.uint64)
     for _, codes in file.iter_codes(fmt):

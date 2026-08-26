@@ -1,10 +1,10 @@
-"""Anatomia di un file GGUF: dove stanno i bit, e quali contano.
+"""The anatomy of a GGUF file: where the bits are, and which ones matter.
 
-La domanda di E3 e se la quantizzazione protegga. La risposta non sta nel numero di
-bit ma nella loro **funzione**: in un blocco Q4_K, 128 byte portano i quanti veri e
-4 byte portano le scale in fp16 da cui dipendono tutti e 256 i pesi del blocco. Un
-flip nei primi sposta un peso di un gradino; un flip nei secondi ne sposta 256 insieme.
-Questo modulo separa le due popolazioni e le conta.
+E3 asks whether quantization protects. The answer lies not in the number of bits but
+in their **function**: in a Q4_K block, 128 bytes carry the actual quants and 4 bytes
+carry the fp16 scales on which all 256 weights of the block depend. A flip in the
+former moves one weight by one step; a flip in the latter moves 256 at once. This
+module separates the two populations and counts them.
 """
 
 from __future__ import annotations
@@ -20,14 +20,14 @@ import numpy as np
 GGUF_MAGIC = b"GGUF"
 DEFAULT_ALIGNMENT = 32
 
-SCALE_FP16 = "scala_fp16"
-SCALE_INT = "scala_intera"
-QUANT = "quanti"
+SCALE_FP16 = "scale_fp16"
+SCALE_INT = "int_scale"
+QUANT = "quant"
 FLOAT = "float"
 
 
 class GGUFError(ValueError):
-    """Il file non rispetta il formato GGUF dichiarato."""
+    """The file does not match the GGUF format it declares."""
 
 
 class ValueType(IntEnum):
@@ -63,7 +63,7 @@ SCALAR_FORMATS = {
 
 @dataclass(frozen=True)
 class Field:
-    """Una porzione di blocco, con il ruolo che ricopre."""
+    """A slice of a block, with the role it plays."""
 
     name: str
     offset: int
@@ -73,7 +73,7 @@ class Field:
 
 @dataclass(frozen=True)
 class BlockLayout:
-    """Come sono disposti i bit dentro un blocco quantizzato."""
+    """How the bits are laid out inside a quantized block."""
 
     type_name: str
     elements: int
@@ -201,7 +201,7 @@ BLOCK_LAYOUTS = {
 
 @dataclass(frozen=True)
 class GGUFTensor:
-    """Un tensore nel file: nome, forma, tipo, posizione nei dati."""
+    """A tensor in the file: name, shape, type, position in the data."""
 
     name: str
     shape: tuple[int, ...]
@@ -219,7 +219,7 @@ class GGUFTensor:
     def layout(self) -> BlockLayout:
         layout = BLOCK_LAYOUTS.get(self.type_id)
         if layout is None:
-            raise GGUFError(f"{self.name}: tipo ggml {self.type_id} non descritto")
+            raise GGUFError(f"{self.name}: ggml type {self.type_id} is not described")
         return layout
 
     @property
@@ -227,8 +227,8 @@ class GGUFTensor:
         layout = self.layout
         if self.elements % layout.elements:
             raise GGUFError(
-                f"{self.name}: {self.elements} elementi non divisibili "
-                f"in blocchi da {layout.elements}"
+                f"{self.name}: {self.elements} elements do not divide "
+                f"into blocks of {layout.elements}"
             )
         return self.elements // layout.elements
 
@@ -238,7 +238,7 @@ class GGUFTensor:
 
 
 class _Reader:
-    """Lettura sequenziale dei tipi primitivi GGUF."""
+    """Sequential reading of GGUF primitive types."""
 
     def __init__(self, data) -> None:
         self.data = data
@@ -246,7 +246,7 @@ class _Reader:
 
     def take(self, count: int) -> bytes:
         if self.cursor + count > len(self.data):
-            raise GGUFError("file troncato durante la lettura dell'intestazione")
+            raise GGUFError("file truncated while reading the header")
         chunk = self.data[self.cursor : self.cursor + count]
         self.cursor += count
         return chunk
@@ -269,7 +269,7 @@ class _Reader:
 
 
 class GGUFFile:
-    """Struttura di un file GGUF, letta senza caricare i dati dei tensori."""
+    """The structure of a GGUF file, read without loading any tensor data."""
 
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
@@ -281,14 +281,14 @@ class GGUFFile:
         self._validate()
 
     def _parse(self, reader: _Reader) -> None:
-        """Legge intestazione, metadati e tabella dei tensori.
+        """Read the header, the metadata and the tensor table.
 
-        L'intestazione di un GGUF non ha dimensione prevedibile: qui dentro c'e anche
-        il vocabolario del tokenizer, che per questo modello supera i quattro megabyte.
-        Si mappa il file invece di indovinare quanto leggerne.
+        A GGUF header has no predictable size: it also holds the tokenizer vocabulary,
+        which for this model exceeds four megabytes. The file is mapped rather than
+        guessed at.
         """
         if reader.take(4) != GGUF_MAGIC:
-            raise GGUFError(f"{self.path}: magic GGUF assente")
+            raise GGUFError(f"{self.path}: GGUF magic missing")
         self.version = reader.scalar(ValueType.UINT32)
         tensor_count = reader.scalar(ValueType.UINT64)
         metadata_count = reader.scalar(ValueType.UINT64)
@@ -316,12 +316,12 @@ class GGUFFile:
         self.data_start = reader.cursor + (-reader.cursor % self.alignment)
 
     def _validate(self) -> None:
-        """Il collaudo del parser: l'aritmetica deve chiudere sui byte del file."""
+        """The parser's own test: the arithmetic must close on the file's bytes."""
         cursor = 0
         for tensor in sorted(self.tensors, key=lambda item: item.offset):
             if tensor.offset != cursor:
                 raise GGUFError(
-                    f"{tensor.name}: inizia a {tensor.offset}, i dati sono a {cursor}"
+                    f"{tensor.name}: starts at {tensor.offset}, data are at {cursor}"
                 )
             cursor += tensor.nbytes
             cursor += -cursor % self.alignment
@@ -330,25 +330,27 @@ class GGUFFile:
         expected = self.data_start + cursor
         if expected != file_size:
             raise GGUFError(
-                f"l'aritmetica non chiude: intestazione {self.data_start} + dati "
-                f"{cursor} = {expected} != {file_size} byte di file"
+                f"arithmetic does not close: header {self.data_start} + data "
+                f"{cursor} = {expected} != {file_size} bytes of file"
             )
 
     @property
     def raw(self) -> np.memmap:
-        """Il file intero, mappato in sola lettura, creato al primo accesso."""
+        """The whole file, mapped read-only, created on first access."""
         if getattr(self, "_raw", None) is None:
             self._raw = np.memmap(self.path, dtype=np.uint8, mode="r")
         return self._raw
 
     def field_codes(self, tensor: GGUFTensor, kind: str = SCALE_FP16) -> np.ndarray:
-        """Pattern a 16 bit di tutti i campi del ruolo indicato, per quel tensore.
+        """The 16-bit patterns of every field of the given role, for that tensor.
 
-        I campi scala non sono contigui: stanno all'inizio di ogni blocco. Si rimodella
-        l'intervallo del tensore in (blocchi × byte_per_blocco) e si prende la colonna.
+        Scale fields are not contiguous: they sit at the start of each block. The
+        tensor's byte range is reshaped into (blocks x bytes_per_block) and the column
+        is taken.
 
-        L'ordine dell'uscita e **per campo, non per blocco**: prima tutte le `d`, poi
-        tutte le `dmin`. Per un istogramma e indifferente, ma il contratto va detto.
+        The output is ordered **by field, not by block**: all the `d` first, then all
+        the `dmin`. It makes no difference to a histogram, but the contract must be
+        stated.
         """
         layout = tensor.layout
         start = self.data_start + tensor.offset
@@ -374,7 +376,7 @@ class GGUFFile:
         return sum(tensor.elements for tensor in self.tensors)
 
     def bit_census(self) -> dict[str, int]:
-        """Quanti bit di dati appartengono a ciascun ruolo."""
+        """How many data bits belong to each role."""
         census: dict[str, int] = {}
         for tensor in self.tensors:
             layout = tensor.layout
@@ -385,7 +387,7 @@ class GGUFFile:
         return census
 
     def scale_fields(self) -> int:
-        """Numero di campi scala in fp16 presenti nel file."""
+        """The number of fp16 scale fields present in the file."""
         return sum(
             tensor.blocks
             * sum(1 for field in tensor.layout.fields if field.kind == SCALE_FP16)

@@ -1,8 +1,8 @@
-"""Acquisizione degli artefatti, sotto le guardie del Principio I.
+"""Acquiring the artifacts, under the guards of Principle I.
 
-Ogni download e ancorato a una revisione precisa del repo: un esperimento che non sa
-quali byte ha misurato non e riproducibile. I file scaricati diventano immediatamente
-di sola lettura, e il loro digest finisce nel manifesto versionato.
+Every download is anchored to a precise repository revision: an experiment that does
+not know which bytes it measured is not reproducible. Downloaded files are made
+read-only immediately, and their digests go into the versioned manifest.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ WEIGHT_PATTERNS = (
 
 @dataclass(frozen=True)
 class Artifact:
-    """Un artefatto scaricabile, con il ruolo che ricopre nell'esperimento."""
+    """A downloadable artifact, with the role it plays in the experiment."""
 
     key: str
     repo_id: str
@@ -54,7 +54,7 @@ BASE = Artifact(
     key="base",
     repo_id="Qwen/Qwen2.5-0.5B-Instruct",
     revision="7ae557604adf67be50417f59c2c2f167def9a775",
-    role="soggetto: modello allineato in bf16",
+    role="subject: the aligned model in bf16",
     primary="model.safetensors",
 )
 
@@ -62,7 +62,7 @@ ABLITERATED = Artifact(
     key="abliterated",
     repo_id="huihui-ai/Qwen2.5-0.5B-Instruct-abliterated-v3",
     revision="3dee99dac7c99318ed2b4e9932bfbbac060fb024",
-    role="controllo positivo: sola ablazione dello stesso base, nessun fine-tuning",
+    role="positive control: ablation only of the same base, no fine-tuning",
     primary="model.safetensors",
 )
 
@@ -70,7 +70,7 @@ QUANTIZED = Artifact(
     key="gguf-q4-k-m",
     repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
     revision="9217f5db79a29953eb74d5343926648285ec7e67",
-    role="soggetto: stesso modello quantizzato a 4 bit",
+    role="subject: the same model quantized to 4 bits",
     primary="qwen2.5-0.5b-instruct-q4_k_m.gguf",
     patterns=("qwen2.5-0.5b-instruct-q4_k_m.gguf",),
 )
@@ -79,7 +79,7 @@ ARTIFACTS = {artifact.key: artifact for artifact in (BASE, ABLITERATED, QUANTIZE
 
 
 def freeze_files(root: Path) -> int:
-    """Rende di sola lettura ogni file sotto `root`, lasciando scrivibili le cartelle."""
+    """Make every file under `root` read-only, leaving directories writable."""
     frozen = 0
     for path in root.rglob("*"):
         if path.is_file() and not path.is_symlink():
@@ -89,7 +89,7 @@ def freeze_files(root: Path) -> int:
 
 
 def fetch(artifact: Artifact) -> Path:
-    """Scarica l'artefatto alla revisione fissata e lo congela in sola lettura."""
+    """Download the artifact at the pinned revision and freeze it read-only."""
     from huggingface_hub import snapshot_download
 
     require_free_space(PROJECT_ROOT, MIN_FREE_GIB_FOR_DOWNLOAD)
@@ -105,7 +105,7 @@ def fetch(artifact: Artifact) -> Path:
 
 
 def describe(artifact: Artifact) -> dict[str, object]:
-    """Riga di manifesto: che cosa e stato misurato, esattamente."""
+    """A manifest row: exactly what was measured."""
     path = artifact.primary_path
     return {
         "key": artifact.key,
@@ -129,7 +129,7 @@ def main() -> None:
 
     MANIFEST_PATH.parent.mkdir(exist_ok=True)
     MANIFEST_PATH.write_text(json.dumps(entries, indent=2, ensure_ascii=False) + "\n")
-    print(f"manifesto → {MANIFEST_PATH.relative_to(PROJECT_ROOT)}")
+    print(f"manifest -> {MANIFEST_PATH.relative_to(PROJECT_ROOT)}")
 
 
 if __name__ == "__main__":

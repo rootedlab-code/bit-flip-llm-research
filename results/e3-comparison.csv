@@ -1,3 +1,3 @@
-formato,artefatto,pesi,bit_totali,bit_catastrofici,quota_bit_catastrofici,raggio_medio_pesi,pesi_persi_per_flip_casuale
+format,artifact,weights,total_bits,catastrophic_bits,catastrophic_bit_share,mean_blast_radius,weights_lost_per_random_flip
 bf16 safetensors,base,494032768,7904524288,494787536,0.06259548556908678,1.0,0.06259548556908678
 gguf q4_k_m,gguf-q4-k-m,630167424,3883618304,17034752,0.004386309535737526,40.058910162002945,0.1757107796348464

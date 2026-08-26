@@ -1,4 +1,4 @@
-bit,campo,frazione_bit_a_zero,delta_mediano,delta_p99,delta_massimo_finito,frazione_amplificati,frazione_non_finiti,frazione_catastrofici
+bit,field,zero_bit_fraction,median_delta,p99_delta,max_finite_delta,amplified_fraction,non_finite_fraction,catastrophic_fraction
 0,mantissa,0.49999646784563084,6.103515625e-05,0.000244140625,1.0,0.0,0.0,0.0
 1,mantissa,0.5014211203091694,0.0001220703125,0.00048828125,2.0,0.0,0.0,0.0
 2,mantissa,0.5042692836115681,0.000244140625,0.0009765625,4.0,0.0,0.0,0.0

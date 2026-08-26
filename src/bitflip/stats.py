@@ -1,4 +1,4 @@
-"""Statistiche pesate: gli esiti sono 65.536, i pesi sono quante volte ricorrono."""
+"""Weighted statistics: the outcomes are 65,536, the weights are how often each occurs."""
 
 from __future__ import annotations
 
@@ -6,14 +6,16 @@ import numpy as np
 
 
 def weighted_quantile(values: np.ndarray, counts: np.ndarray, quantile: float) -> float:
-    """Quantile della distribuzione in cui `values[i]` compare `counts[i]` volte.
+    """Quantile of the distribution where `values[i]` occurs `counts[i]` times.
 
-    Solleva `ValueError` su quantile fuori da [0, 1] o su distribuzione vuota.
+    Follows the `inverted_cdf` convention: the value returned is one that was
+    actually observed. Raises `ValueError` on a quantile outside [0, 1] or an
+    empty distribution.
     """
     if not 0.0 <= quantile <= 1.0:
-        raise ValueError(f"quantile {quantile} fuori da [0, 1]")
+        raise ValueError(f"quantile {quantile} outside [0, 1]")
     if values.size == 0 or counts.sum() == 0:
-        raise ValueError("distribuzione vuota")
+        raise ValueError("empty distribution")
 
     order = np.argsort(values, kind="stable")
     ordered_values = values[order]

@@ -1,12 +1,13 @@
-"""E3 — la superficie critica di un modello quantizzato.
+"""E3 -- the critical surface of a quantized model.
 
-La quantizzazione protegge? La domanda non si decide contando i bit ma separandoli per
-**funzione**: i quanti sono interi, e un flip li sposta di un gradino limitato; le
-scale sono fp16, e un flip nel loro esponente alto moltiplica per 65.536 *tutti* i
-pesi del blocco che governano. Qui si contano le due popolazioni e si misura, con lo
-stesso metodo esatto di E1, quanto vale un guasto casuale nei due formati.
+Does quantization protect? The question is not settled by counting bits but by
+separating them by **function**: quants are integers, and a flip moves them by a
+bounded step; scales are fp16, and a flip in their top exponent bit multiplies *all*
+the weights of the block they govern by 65,536. Here the two populations are counted
+and, with the same exact method as E1, the cost of a random fault is measured in both
+formats.
 
-Uso:  uv run python experiments/e3_gguf_surface.py
+Usage:  uv run python experiments/e3_gguf_surface.py
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 
 
 def scale_histograms(file: GGUFFile) -> dict[int, np.ndarray]:
-    """Istogrammi dei pattern delle scale fp16, separati per dimensione del blocco."""
+    """Histograms of the fp16 scale patterns, split by block size."""
     histograms: dict[int, np.ndarray] = defaultdict(
         lambda: np.zeros(CODE_SPACE, dtype=np.uint64)
     )
@@ -47,14 +48,14 @@ def scale_histograms(file: GGUFFile) -> dict[int, np.ndarray]:
 
 
 def catastrophic_bits(rows: list[dict[str, object]], population: int) -> float:
-    """Quanti bit, nella popolazione data, sono catastrofici se ribaltati."""
-    return sum(float(row["frazione_catastrofici"]) for row in rows) * population
+    """How many bits, in the given population, are catastrophic when flipped."""
+    return sum(float(row["catastrophic_fraction"]) for row in rows) * population
 
 
 def main() -> int:
     if not QUANTIZED.primary_path.exists() or not BASE.primary_path.exists():
         print(
-            "artefatti mancanti: eseguire `uv run python -m bitflip.fetch`",
+            "missing artifacts: run `uv run python -m bitflip.fetch`",
             file=sys.stderr,
         )
         return 1
@@ -70,7 +71,8 @@ def main() -> int:
     gguf_bits = sum(census.values())
     print(f"=== {QUANTIZED.primary_path.name} ===")
     print(
-        f"{len(gguf)} tensori · {gguf.parameter_count:,} pesi · {gguf_bits:,} bit di dati"
+        f"{len(gguf)} tensors · {gguf.parameter_count:,} weights · "
+        f"{gguf_bits:,} data bits"
     )
     for kind, bits in sorted(census.items(), key=lambda item: -item[1]):
         print(f"  {kind:<14} {bits:>15,} bit  {bits / gguf_bits:>9.5%}")
@@ -85,15 +87,15 @@ def main() -> int:
         catastrophic_scale_bits += bits
         damaged_weights += bits * elements
 
-        print(f"\n--- scale fp16 di blocchi da {elements} pesi: {scales:,} scale ---")
+        print(f"\n--- fp16 scales of {elements}-weight blocks: {scales:,} ---")
         print(format_table(rows))
         print(
-            f"bit catastrofici in questa popolazione: {bits:,.0f} "
-            f"({catastrophic_bit_fraction(rows, FP16):.4%} dei loro bit), "
-            f"raggio {elements} pesi ciascuno"
+            f"catastrophic bits in this population: {bits:,.0f} "
+            f"({catastrophic_bit_fraction(rows, FP16):.4%} of their bits), "
+            f"blast radius {elements} weights each"
         )
         for row in rows:
-            all_rows.append({"blocco_elementi": elements, **row})
+            all_rows.append({"block_elements": elements, **row})
 
     bf16_rows = bit_rows(bf16_counts, BF16)
     bf16_total_bits = safetensors.parameter_count * BF16.total_bits
@@ -101,44 +103,44 @@ def main() -> int:
 
     comparison = [
         {
-            "formato": "bf16 safetensors",
-            "artefatto": BASE.key,
-            "pesi": safetensors.parameter_count,
-            "bit_totali": bf16_total_bits,
-            "bit_catastrofici": round(bf16_catastrophic),
-            "quota_bit_catastrofici": bf16_catastrophic / bf16_total_bits,
-            "raggio_medio_pesi": 1.0,
-            "pesi_persi_per_flip_casuale": bf16_catastrophic / bf16_total_bits,
+            "format": "bf16 safetensors",
+            "artifact": BASE.key,
+            "weights": safetensors.parameter_count,
+            "total_bits": bf16_total_bits,
+            "catastrophic_bits": round(bf16_catastrophic),
+            "catastrophic_bit_share": bf16_catastrophic / bf16_total_bits,
+            "mean_blast_radius": 1.0,
+            "weights_lost_per_random_flip": bf16_catastrophic / bf16_total_bits,
         },
         {
-            "formato": "gguf q4_k_m",
-            "artefatto": QUANTIZED.key,
-            "pesi": gguf.parameter_count,
-            "bit_totali": gguf_bits,
-            "bit_catastrofici": round(catastrophic_scale_bits),
-            "quota_bit_catastrofici": catastrophic_scale_bits / gguf_bits,
-            "raggio_medio_pesi": damaged_weights / catastrophic_scale_bits,
-            "pesi_persi_per_flip_casuale": damaged_weights / gguf_bits,
+            "format": "gguf q4_k_m",
+            "artifact": QUANTIZED.key,
+            "weights": gguf.parameter_count,
+            "total_bits": gguf_bits,
+            "catastrophic_bits": round(catastrophic_scale_bits),
+            "catastrophic_bit_share": catastrophic_scale_bits / gguf_bits,
+            "mean_blast_radius": damaged_weights / catastrophic_scale_bits,
+            "weights_lost_per_random_flip": damaged_weights / gguf_bits,
         },
     ]
 
-    print("\n=== confronto: quanto costa un guasto in un bit a caso ===")
+    print("\n=== comparison: what one fault in a random bit costs ===")
     print(
-        f"{'formato':<22} {'bit totali':>16} {'catastrofici':>15} "
-        f"{'quota':>9} {'raggio':>8} {'pesi persi':>12}"
+        f"{'format':<22} {'total bits':>16} {'catastrophic':>15} "
+        f"{'share':>9} {'radius':>8} {'weights lost':>12}"
     )
     for row in comparison:
         print(
-            f"{row['formato']:<22} {row['bit_totali']:>16,} "
-            f"{row['bit_catastrofici']:>15,} {row['quota_bit_catastrofici']:>8.4%} "
-            f"{row['raggio_medio_pesi']:>8.1f} "
-            f"{row['pesi_persi_per_flip_casuale']:>12.6f}"
+            f"{row['format']:<22} {row['total_bits']:>16,} "
+            f"{row['catastrophic_bits']:>15,} {row['catastrophic_bit_share']:>8.4%} "
+            f"{row['mean_blast_radius']:>8.1f} "
+            f"{row['weights_lost_per_random_flip']:>12.6f}"
         )
 
     bf16_expected = bf16_catastrophic / bf16_total_bits
     gguf_expected = damaged_weights / gguf_bits
     print(
-        f"\nrapporto pesi persi per flip casuale, gguf / bf16: "
+        f"\nratio of weights lost per random flip, gguf / bf16: "
         f"{gguf_expected / bf16_expected:.3f}"
     )
 
@@ -152,7 +154,7 @@ def main() -> int:
         writer.writerows(comparison)
     with (RESULTS_DIR / "e3-gguf-bit-census.csv").open("w", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["ruolo", "bit", "quota"])
+        writer.writerow(["role", "bits", "share"])
         for kind, bits in sorted(census.items(), key=lambda item: -item[1]):
             writer.writerow([kind, bits, bits / gguf_bits])
     return 0

@@ -1,9 +1,9 @@
-"""Misure deterministiche di qualita del modello.
+"""Deterministic measurements of model quality.
 
-Il modello non viene costruito qui: si riceve una funzione che, dati dei token,
-restituisce i logit. Cosi l'aritmetica della perplexity si verifica in locale con
-funzioni finte in millisecondi, e su Kaggle la stessa funzione riceve un modello vero
-senza che il codice cambi.
+The model is not built here: a function is received that, given tokens, returns
+logits. The perplexity arithmetic is therefore verified locally with stub functions in
+milliseconds, and on Kaggle the same function receives a real model without a line of
+code changing.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ GREEDY_GENERATION = {
 
 
 def set_determinism(seed: int = 0) -> None:
-    """Azzera ogni sorgente di casualita che possa entrare in una misura."""
+    """Zero out every source of randomness that could enter a measurement."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -43,14 +43,14 @@ def set_determinism(seed: int = 0) -> None:
 def sliding_windows(
     length: int, window: int = DEFAULT_WINDOW, stride: int = DEFAULT_STRIDE
 ) -> Iterator[tuple[int, int, int]]:
-    """Finestre (inizio, fine, primo indice da valutare) che coprono la sequenza.
+    """Windows (start, end, first index to score) covering the sequence.
 
-    Ogni token viene valutato **una volta sola**, ma con il contesto piu ampio che la
-    finestra gli possa dare: e la differenza tra una perplexity onesta e una gonfiata
-    dal doppio conteggio. Il token in posizione 0 non ha predecessore e non si valuta.
+    Every token is scored **exactly once**, but with the widest context the window can
+    give it: that is the difference between an honest perplexity and one inflated by
+    double counting. The token at position 0 has no predecessor and is never scored.
     """
     if window <= stride:
-        raise ValueError(f"finestra {window} non maggiore del passo {stride}")
+        raise ValueError(f"window {window} is not greater than stride {stride}")
     if length < 2:
         return
 
@@ -71,14 +71,14 @@ def perplexity(
     window: int = DEFAULT_WINDOW,
     stride: int = DEFAULT_STRIDE,
 ) -> float:
-    """Perplexity a finestra scorrevole: exp della log-verosimiglianza media per token.
+    """Sliding-window perplexity: exp of the mean per-token negative log-likelihood.
 
-    `score` riceve i token di una finestra e restituisce i logit di forma
-    (lunghezza, vocabolario). Solleva `ValueError` su sequenze troppo corte.
+    `score` receives the tokens of one window and returns logits of shape
+    (length, vocabulary). Raises `ValueError` on sequences that are too short.
     """
     token_ids = token_ids.flatten()
     if token_ids.numel() < 2:
-        raise ValueError("servono almeno due token per valutare una predizione")
+        raise ValueError("at least two tokens are needed to score a prediction")
 
     total_nll = 0.0
     total_tokens = 0

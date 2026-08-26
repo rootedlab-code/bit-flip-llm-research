@@ -1,8 +1,8 @@
-"""Corrispondenza tra il pattern di 16 bit e il valore che rappresenta.
+"""The correspondence between a 16-bit pattern and the value it represents.
 
-Il progetto ruota attorno a un fatto: i bit di un peso non valgono uguale. Questo
-modulo lo rende calcolabile — nessuna conversione passa da una libreria di terze
-parti, cosi ogni cifra pubblicata risale a operazioni intere verificabili qui.
+The project turns on one fact: the bits of a weight are not worth the same. This
+module makes that computable -- no conversion goes through a third-party library, so
+every figure we publish traces back to integer operations verifiable here.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ MANTISSA = "mantissa"
 
 @dataclass(frozen=True)
 class FloatFormat:
-    """Geometria di un formato in virgola mobile a 16 bit."""
+    """The geometry of a 16-bit floating-point format."""
 
     name: str
     exponent_bits: int
@@ -52,8 +52,8 @@ FORMATS = {fmt.name: fmt for fmt in (BF16, FP16)}
 
 
 def _contiguous(values, dtype) -> np.ndarray:
-    # ascontiguousarray promuove gli scalari a array 1-d: qui la forma va conservata,
-    # perche il chiamante che passa un peso singolo si aspetta un valore singolo.
+    # ascontiguousarray promotes scalars to 1-d arrays; here the shape must be
+    # preserved, because a caller passing one weight expects one value back.
     array = np.asarray(values, dtype=dtype)
     return array if array.flags.c_contiguous else np.ascontiguousarray(array)
 
@@ -68,8 +68,8 @@ def _bf16_to_float32(codes: np.ndarray) -> np.ndarray:
 
 def _float32_to_bf16(values: np.ndarray) -> np.ndarray:
     bits = values.view(np.uint32)
-    # Arrotondamento al pari piu vicino: senza questa correzione la conversione
-    # troncherebbe, introducendo un bias sistematico verso lo zero nei nostri campioni.
+    # Round to nearest even: without this correction the conversion would truncate,
+    # introducing a systematic bias towards zero across our samples.
     rounded = (bits + np.uint32(0x7FFF) + ((bits >> np.uint32(16)) & np.uint32(1))) >> 16
     truncated = bits >> np.uint32(16)
     return np.where(np.isnan(values), truncated, rounded).astype(np.uint16)
@@ -90,56 +90,56 @@ _CODECS = {
 
 
 def to_float32(codes, fmt: FloatFormat) -> np.ndarray:
-    """Valori float32 corrispondenti ai pattern di bit dati."""
+    """The float32 values corresponding to the given bit patterns."""
     return _CODECS[fmt.name][0](_as_codes(codes))
 
 
 def from_float32(values, fmt: FloatFormat) -> np.ndarray:
-    """Pattern di bit corrispondenti ai valori dati."""
+    """The bit patterns corresponding to the given values."""
     return _CODECS[fmt.name][1](_contiguous(values, np.float32))
 
 
 def flip_bit(codes, position: int, fmt: FloatFormat) -> np.ndarray:
-    """Ribalta il bit in posizione `position` (0 = meno significativo)."""
+    """Flip the bit at `position` (0 is the least significant)."""
     if not 0 <= position < fmt.total_bits:
         raise ValueError(
-            f"posizione {position} fuori dai {fmt.total_bits} bit di {fmt.name}"
+            f"position {position} outside the {fmt.total_bits} bits of {fmt.name}"
         )
     return _as_codes(codes) ^ np.uint16(1 << position)
 
 
 def field_at(position: int, fmt: FloatFormat) -> str:
-    """Campo IEEE-754 a cui appartiene la posizione: segno, esponente o mantissa."""
+    """The IEEE-754 field a position belongs to: sign, exponent or mantissa."""
     if position == fmt.sign_position:
         return SIGN
     if position in fmt.exponent_positions:
         return EXPONENT
     if position in fmt.mantissa_positions:
         return MANTISSA
-    raise ValueError(f"posizione {position} fuori dai {fmt.total_bits} bit di {fmt.name}")
+    raise ValueError(
+        f"position {position} outside the {fmt.total_bits} bits of {fmt.name}"
+    )
 
 
 def exponent_shift(position: int, fmt: FloatFormat) -> int:
-    """Di quanto cambia l'esponente polarizzato ribaltando quel bit."""
+    """How much the biased exponent changes when that bit is flipped."""
     if field_at(position, fmt) != EXPONENT:
-        raise ValueError(
-            f"la posizione {position} di {fmt.name} non e un bit di esponente"
-        )
+        raise ValueError(f"position {position} of {fmt.name} is not an exponent bit")
     return 2 ** (position - fmt.mantissa_bits)
 
 
 def exponent_multiplier(position: int, fmt: FloatFormat) -> float:
-    """Fattore per cui il valore viene moltiplicato (bit 0->1) o diviso (1->0).
+    """The factor the value is multiplied by (0->1) or divided by (1->0).
 
-    E la legge che rende il progetto interessante: un bit di esponente in posizione p
-    moltiplica il peso per 2**(2**(p - mantissa_bits)). Per bf16 il bit alto vale
-    2**128; per fp16, con tre bit di esponente in meno, vale 2**16.
+    This is the law that makes the project interesting: an exponent bit at position p
+    multiplies the weight by 2**(2**(p - mantissa_bits)). For bf16 the top bit is
+    worth 2**128; for fp16, with three fewer exponent bits, it is worth 2**16.
     """
     return float(2.0 ** exponent_shift(position, fmt))
 
 
 def compose(sign, exponent, mantissa, fmt: FloatFormat) -> np.ndarray:
-    """Ricompone un pattern dai suoi tre campi. Inversa di `decompose`."""
+    """Rebuild a pattern from its three fields. Inverse of `decompose`."""
     sign = _contiguous(sign, np.uint16)
     exponent = _contiguous(exponent, np.uint16)
     mantissa = _contiguous(mantissa, np.uint16)
@@ -151,7 +151,7 @@ def compose(sign, exponent, mantissa, fmt: FloatFormat) -> np.ndarray:
 
 
 def decompose(codes, fmt: FloatFormat) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Scompone i pattern in (segno, esponente polarizzato, mantissa)."""
+    """Split patterns into (sign, biased exponent, mantissa)."""
     codes = _as_codes(codes)
     sign = (codes >> fmt.sign_position) & np.uint16(1)
     exponent = (codes >> fmt.mantissa_bits) & np.uint16((1 << fmt.exponent_bits) - 1)

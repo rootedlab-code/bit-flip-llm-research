@@ -1,4 +1,4 @@
-"""Contratto del quantile pesato."""
+"""The contract of the weighted quantile."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def test_unsorted_input_is_handled():
 
 
 def test_matches_numpy_on_an_expanded_distribution():
-    """La convenzione e quella di `inverted_cdf`: si restituisce un valore osservato."""
+    """The convention is `inverted_cdf`: the value returned was actually observed."""
     values = np.arange(5, dtype=np.float64)
     counts = np.array([3, 1, 4, 1, 5], dtype=np.uint64)
     expanded = np.repeat(values, counts.astype(np.int64))
@@ -48,10 +48,10 @@ def test_matches_numpy_on_an_expanded_distribution():
 
 
 def test_quantile_outside_the_unit_interval_is_rejected():
-    with pytest.raises(ValueError, match="fuori da"):
+    with pytest.raises(ValueError, match="outside"):
         weighted_quantile(VALUES, COUNTS, 1.5)
 
 
 def test_empty_distribution_is_rejected():
-    with pytest.raises(ValueError, match="vuota"):
+    with pytest.raises(ValueError, match="empty"):
         weighted_quantile(VALUES, np.zeros(3, dtype=np.uint64), 0.5)

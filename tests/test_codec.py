@@ -1,4 +1,4 @@
-"""Contratto del codec: la legge dei bit di esponente, verificata invece che citata."""
+"""The codec contract: the law of exponent bits, verified rather than cited."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def test_scalar_input_yields_scalar_output(fmt):
 
 
 def test_flip_rejects_a_position_outside_the_word():
-    with pytest.raises(ValueError, match="fuori dai 16 bit"):
+    with pytest.raises(ValueError, match="outside the 16 bits"):
         flip_bit(np.uint16(0), 16, BF16)
 
 
@@ -75,16 +75,16 @@ def test_exponent_shift_doubles_with_each_position(fmt):
 
 
 def test_exponent_shift_refuses_a_mantissa_bit():
-    with pytest.raises(ValueError, match="non e un bit di esponente"):
+    with pytest.raises(ValueError, match="is not an exponent bit"):
         exponent_shift(0, BF16)
 
 
 @pytest.mark.parametrize("fmt", FORMAT_LIST, ids=lambda f: f.name)
 def test_exponent_flip_multiplies_the_value_by_two_to_the_shift(fmt):
-    """La legge del progetto: un bit di esponente moltiplica per 2**(2**indice).
+    """The project's law: an exponent bit multiplies by 2**(2**index).
 
-    Verificata su *tutti* gli esponenti normali per cui il flip non trabocca, non su
-    un valore scelto a mano.
+    Verified over *every* normal exponent for which the flip does not overflow, not
+    over one hand-picked value.
     """
     max_exponent = (1 << fmt.exponent_bits) - 1
 
@@ -107,14 +107,15 @@ def test_exponent_flip_multiplies_the_value_by_two_to_the_shift(fmt):
         before = to_float32(codes, fmt).astype(np.float64)
         after = to_float32(flip_bit(codes, position, fmt), fmt).astype(np.float64)
 
-        # Il confronto va fatto in float64: per bf16 il fattore del bit alto e 2**128,
-        # che eccede il massimo di float32 e diventerebbe inf nel confronto stesso.
+        # The comparison must happen in float64: for bf16 the top bit's factor is
+        # 2**128, which exceeds the float32 maximum and would become inf in the
+        # comparison itself.
         assert np.array_equal(after, before * exponent_multiplier(position, fmt))
 
 
 def test_the_top_exponent_bit_costs_2_to_the_128_in_bf16_and_2_to_the_16_in_fp16():
-    """L'asimmetria che rende bf16 il formato piu fragile sotto attacco."""
-    with np.errstate(over="ignore"):  # il traboccamento e proprio cio che si asserisce
+    """The asymmetry that makes bf16 the more fragile format under attack."""
+    with np.errstate(over="ignore"):  # the overflow is exactly what is asserted
         assert np.float32(exponent_multiplier(14, BF16)) == np.inf
     assert np.isfinite(np.float32(exponent_multiplier(14, FP16)))
     assert exponent_multiplier(14, BF16) == 2.0**128
@@ -132,7 +133,7 @@ def test_mantissa_top_bit_adds_exactly_half_to_the_significand(fmt):
 
 @pytest.mark.parametrize("fmt", FORMAT_LIST, ids=lambda f: f.name)
 def test_mantissa_flips_never_move_a_weight_more_than_a_factor_of_two(fmt):
-    """Il contraltare: nessun bit di mantissa puo fare danno paragonabile."""
+    """The counterpart: no mantissa bit can do comparable damage."""
     weights = to_float32(
         from_float32(np.linspace(0.001, 0.5, 400, dtype=np.float32), fmt), fmt
     )

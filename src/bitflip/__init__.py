@@ -1,3 +1,3 @@
-"""Ricerca sperimentale sui ribaltamenti di bit nei pesi dei modelli linguistici."""
+"""Experimental research on bit flips in the weights of language models."""
 
 __version__ = "0.1.0"

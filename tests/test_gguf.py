@@ -1,4 +1,4 @@
-"""Contratto del parser GGUF: anche qui il collaudo e la chiusura dell'aritmetica."""
+"""The GGUF parser contract: here too the test is that the arithmetic closes."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def encode_string(text: str) -> bytes:
 
 
 def build_gguf(path, *, blocks=2, type_id=Q4_K_TYPE, offset_shift=0, truncate=0):
-    """Scrive un GGUF minimo: un tensore quantizzato e un metadato."""
+    """Write a minimal GGUF: one quantized tensor and one metadata entry."""
     layout = BLOCK_LAYOUTS[type_id]
     header = bytearray(GGUF_MAGIC)
     header += struct.pack("<IQQ", 3, 1, 1)
@@ -69,14 +69,14 @@ def test_arithmetic_closes_on_the_file_size(synthetic):
 def test_a_truncated_file_is_rejected(tmp_path):
     path = build_gguf(tmp_path / "short.gguf", truncate=8)
 
-    with pytest.raises(GGUFError, match="l'aritmetica non chiude"):
+    with pytest.raises(GGUFError, match="arithmetic does not close"):
         GGUFFile(path)
 
 
 def test_a_tensor_that_does_not_start_where_the_data_do_is_rejected(tmp_path):
     path = build_gguf(tmp_path / "shifted.gguf", offset_shift=ALIGNMENT)
 
-    with pytest.raises(GGUFError, match="i dati sono a"):
+    with pytest.raises(GGUFError, match="data are at"):
         GGUFFile(path)
 
 
@@ -84,7 +84,7 @@ def test_a_file_without_the_magic_is_rejected(tmp_path):
     path = tmp_path / "notgguf.bin"
     path.write_bytes(b"XXXX" + b"\x00" * 64)
 
-    with pytest.raises(GGUFError, match="magic GGUF assente"):
+    with pytest.raises(GGUFError, match="GGUF magic missing"):
         GGUFFile(path)
 
 
@@ -133,7 +133,7 @@ def test_field_codes_groups_by_field_not_by_block(synthetic):
 
     codes = file.field_codes(tensor, SCALE_FP16)
 
-    # prima le `d` dei due blocchi, poi le `dmin`: l'ordine e per campo
+    # all the `d` of both blocks first, then the `dmin`: the order is by field
     assert list(codes) == [
         word(0),
         word(block_bytes),

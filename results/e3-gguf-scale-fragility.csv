@@ -1,4 +1,4 @@
-blocco_elementi,bit,campo,frazione_bit_a_zero,delta_mediano,delta_p99,delta_massimo_finito,frazione_amplificati,frazione_non_finiti,frazione_catastrofici
+block_elements,bit,field,zero_bit_fraction,median_delta,p99_delta,max_finite_delta,amplified_fraction,non_finite_fraction,catastrophic_fraction
 32,0,mantissa,0.6497523914424456,1.9073486328125e-06,7.62939453125e-06,0.000244140625,0.0,0.0,0.0
 32,1,mantissa,0.6455874013998878,3.814697265625e-06,1.52587890625e-05,0.00048828125,0.0,0.0,0.0
 32,2,mantissa,0.6755454062285652,7.62939453125e-06,3.0517578125e-05,0.0009765625,0.0,0.0,0.0

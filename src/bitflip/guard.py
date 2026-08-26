@@ -1,8 +1,8 @@
-"""Guardie che impediscono al progetto di danneggiare la macchina che lo ospita.
+"""Guards that keep this project from harming the machine hosting it.
 
-Principio I della costituzione: i flip di questo progetto sono aritmetica in memoria,
-mai eventi fisici. Cio che puo davvero danneggiare l'host e prosaico — un disco
-riempito, un file di modello sovrascritto — ed e qui che si difende.
+Constitution, Principle I: the flips studied here are arithmetic in memory, never
+physical events. What can actually damage the host is prosaic -- a filled disk, an
+overwritten model file -- and that is what these guards defend against.
 """
 
 from __future__ import annotations
@@ -21,45 +21,45 @@ WRITE_BITS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 
 
 class HostSafetyError(RuntimeError):
-    """L'involucro di salvaguardia e stato violato: l'operazione va fermata."""
+    """The safety envelope was breached: the operation must stop."""
 
 
 class InsufficientDiskSpaceError(HostSafetyError):
-    """Spazio libero sotto la soglia richiesta."""
+    """Free space is below the required threshold."""
 
 
 class FileIntegrityError(HostSafetyError):
-    """Un file dichiarato immutabile e cambiato."""
+    """A file declared immutable has changed."""
 
 
 def free_gib(path: Path | str) -> float:
-    """Spazio libero, in GiB, sul filesystem che contiene `path`."""
+    """Free space, in GiB, on the filesystem holding `path`."""
     return shutil.disk_usage(Path(path)).free / BYTES_PER_GIB
 
 
 def require_free_space(
     path: Path | str, min_free_gib: float = DEFAULT_MIN_FREE_GIB
 ) -> float:
-    """Verifica lo spazio libero prima di un'operazione che scrive.
+    """Check free space before an operation that writes.
 
-    Restituisce i GiB disponibili; solleva `InsufficientDiskSpaceError` sotto soglia.
+    Returns the available GiB; raises `InsufficientDiskSpaceError` below threshold.
     """
     available = free_gib(path)
     if available < min_free_gib:
         raise InsufficientDiskSpaceError(
-            f"{available:.1f} GiB liberi su {path}, soglia {min_free_gib:.1f} GiB"
+            f"{available:.1f} GiB free on {path}, threshold {min_free_gib:.1f} GiB"
         )
     return available
 
 
 def sha256_file(path: Path | str) -> str:
-    """Digest esadecimale SHA-256 del contenuto del file."""
+    """Hexadecimal SHA-256 digest of the file contents."""
     with Path(path).open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def make_readonly(path: Path | str) -> None:
-    """Toglie i permessi di scrittura al file, seguendo gli eventuali symlink."""
+    """Strip write permissions from the file, following any symlinks."""
     target = Path(path).resolve()
     target.chmod(target.stat().st_mode & ~WRITE_BITS)
 
@@ -70,22 +70,21 @@ def is_readonly(path: Path | str) -> bool:
 
 @contextmanager
 def immutable(paths: Iterable[Path | str]) -> Iterator[dict[str, str]]:
-    """Contesto che pretende che i file indicati non cambino di un solo bit.
+    """A context demanding that the named files do not change by a single bit.
 
-    Registra i digest all'ingresso, li riverifica all'uscita, solleva
-    `FileIntegrityError` alla prima differenza.
+    Digests are recorded on entry and re-verified on exit, raising
+    `FileIntegrityError` at the first difference.
     """
     recorded = {str(Path(p).resolve()): sha256_file(p) for p in paths}
     try:
         yield recorded
     finally:
-        # La verifica gira anche quando il corpo e fallito: un file corrotto durante
-        # un errore e un fatto piu grave dell'errore stesso, e Python conserva
-        # comunque l'eccezione originale nella catena.
+        # Verification runs even when the body failed: a file corrupted during an
+        # error is graver than the error itself, and Python preserves the original
+        # exception in the chain anyway.
         for filename, expected in recorded.items():
             actual = sha256_file(filename)
             if actual != expected:
                 raise FileIntegrityError(
-                    f"{filename} e cambiato: atteso {expected[:16]}…, "
-                    f"trovato {actual[:16]}…"
+                    f"{filename} changed: expected {expected[:16]}…, found {actual[:16]}…"
                 )

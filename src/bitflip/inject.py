@@ -1,9 +1,9 @@
-"""Iniezione di guasti nei pesi, in memoria e sempre reversibile.
+"""Fault injection into weights: in memory, and always reversible.
 
-Principio I e III della costituzione: nessun peso modificato tocca il disco, e la
-scelta dei bit e riproducibile da un seme. La selezione e aritmetica pura su numpy,
-quindi si verifica in locale senza modelli; l'applicazione a un modello vero e un
-adattatore sottile che vive in fondo al file.
+Constitution Principles I and III: no modified weight touches the disk, and the choice
+of bits is reproducible from a seed. Selection is pure numpy arithmetic, so it is
+verified locally without models; applying it to a real model is a thin adapter at the
+bottom of this file.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ TOP_EXPONENT_BIT = 14
 
 @dataclass(frozen=True)
 class Flip:
-    """Un guasto: quale tensore, quale peso, quale bit."""
+    """A fault: which tensor, which weight, which bit."""
 
     tensor: str
     index: int
@@ -34,16 +34,16 @@ def random_flips(
     seed: int,
     bits: Sequence[int] | None = None,
 ) -> list[Flip]:
-    """Guasti uniformi su tutti i bit di tutti i pesi — il modello del raggio cosmico.
+    """Faults uniform over every bit of every weight -- the cosmic-ray model.
 
-    Uniforme significa proporzionale alla dimensione dei tensori: un tensore grande
-    e colpito piu spesso perche offre piu bersagli, non perche conti di piu.
+    Uniform means proportional to tensor size: a large tensor is hit more often
+    because it offers more targets, not because it matters more.
     """
     if count < 0:
-        raise ValueError(f"numero di guasti negativo: {count}")
+        raise ValueError(f"negative fault count: {count}")
     names = list(sizes)
     if not names:
-        raise ValueError("nessun tensore in cui iniettare")
+        raise ValueError("no tensor to inject into")
     positions = list(bits) if bits is not None else list(range(BF16.total_bits))
 
     boundaries = np.cumsum([sizes[name] for name in names])
@@ -65,11 +65,12 @@ def largest_magnitude_flips(
     fmt: FloatFormat = BF16,
     bit: int = TOP_EXPONENT_BIT,
 ) -> list[Flip]:
-    """Guasti scelti: il bit alto dell'esponente dei pesi di modulo maggiore.
+    """Chosen faults: the top exponent bit of the largest-magnitude weights.
 
-    E la politica che la letteratura trova efficace, ed E1 spiega perche funziona senza
-    conoscere il modello: quel bit vale zero nel 100% dei pesi, quindi il flip amplifica
-    sempre. Qui si aggiunge l'unica informazione che serve — dove stanno i pesi grandi.
+    This is the policy the literature finds effective, and E1 explains why it works
+    without knowing the model: that bit is zero in 100% of weights, so the flip always
+    amplifies. What is added here is the only extra information needed -- where the
+    large weights are.
     """
     from bitflip.codec import to_float32
 
@@ -85,7 +86,7 @@ def largest_magnitude_flips(
 
 
 def apply_flips(codes: np.ndarray, flips: Sequence[Flip]) -> np.ndarray:
-    """Applica i guasti a un array di pattern, restituendo una copia modificata."""
+    """Apply the faults to an array of patterns, returning a modified copy."""
     modified = np.array(codes, dtype=np.uint16, copy=True)
     for flip in flips:
         modified[flip.index] ^= np.uint16(1 << flip.bit)
@@ -93,13 +94,13 @@ def apply_flips(codes: np.ndarray, flips: Sequence[Flip]) -> np.ndarray:
 
 
 def _integer_view(parameter):
-    """Vista intera di un parametro, con lo scorrimento di bit che il dtype impone.
+    """An integer view of a parameter, with the bit shift its dtype imposes.
 
-    Un peso bf16 promosso a float32 conserva il proprio pattern **esattamente** nei
-    16 bit alti, perche la conversione bf16 → float32 riempie di zeri i bit bassi. Il
-    bit `b` del bf16 memorizzato e quindi il bit `b + 16` del float32 che lo ospita.
-    E cio che permette di calcolare in float32 su GPU senza bf16 nativo — come le T4
-    di Kaggle — restando fedeli al guasto che avviene in DRAM.
+    A bf16 weight promoted to float32 keeps its pattern **exactly** in the top 16 bits,
+    because the bf16 -> float32 conversion zero-fills the low bits. Bit `b` of the
+    stored bf16 is therefore bit `b + 16` of the float32 holding it. This is what
+    allows computing in float32 on GPUs without native bf16 -- such as Kaggle's T4s --
+    while staying faithful to the fault that happens in DRAM.
     """
     import torch
 
@@ -108,16 +109,16 @@ def _integer_view(parameter):
         return flat.view(torch.int16), 0, np.int16
     if flat.dtype == torch.float32:
         return flat.view(torch.int32), 16, np.int32
-    raise TypeError(f"dtype {flat.dtype} non supportato per l'iniezione")
+    raise TypeError(f"dtype {flat.dtype} is not supported for injection")
 
 
 @contextmanager
 def flipped_model(model, flips: Sequence[Flip]) -> Iterator[dict[str, int]]:
-    """Applica i guasti a un modello torch e li **annulla sempre** all'uscita.
+    """Apply the faults to a torch model and **always** undo them on exit.
 
-    I valori originali si conservano in memoria e si ripristinano anche se il corpo
-    fallisce: senza questa garanzia una misura successiva erediterebbe il guasto della
-    precedente, e nessuno se ne accorgerebbe.
+    The original values are kept in memory and restored even if the body fails:
+    without that guarantee a later measurement would inherit the previous one's damage,
+    and nobody would notice.
     """
     import torch
 
@@ -131,7 +132,7 @@ def flipped_model(model, flips: Sequence[Flip]) -> Iterator[dict[str, int]]:
                 originals.append((flip.tensor, flip.index, int(view[flip.index])))
                 mask = int(np.array(1 << (flip.bit + shift)).astype(dtype))
                 view[flip.index] ^= mask
-        yield {"applicati": len(flips)}
+        yield {"applied": len(flips)}
     finally:
         with torch.no_grad():
             for name, index, value in reversed(originals):
