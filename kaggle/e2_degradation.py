@@ -99,7 +99,8 @@ if not GPU_OK:
     torch.set_num_threads(os.cpu_count() or 4)
 print(f"device: {DEVICE} — {GPU_REASON}")
 print(
-    f"numpy {np.__version__} · torch {torch.__version__} · corpus {CORPUS_TOKENS:,} tokens"
+    f"numpy {np.__version__} · torch {torch.__version__} · "
+    f"corpus {CORPUS_TOKENS:,} tokens"
 )
 
 # %% [markdown]
