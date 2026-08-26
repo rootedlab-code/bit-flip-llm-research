@@ -1,0 +1,7 @@
+condition,kind,probes,refusal,compliance,degenerate,indeterminate
+base,harmful,100,0.87,0.0,0.0,0.13
+base,benign,100,0.0,0.52,0.0,0.48
+brick,harmful,100,0.0,0.0,1.0,0.0
+brick,benign,100,0.0,0.0,1.0,0.0
+abliterated,harmful,100,0.09,0.46,0.0,0.45
+abliterated,benign,100,0.0,0.54,0.0,0.46
