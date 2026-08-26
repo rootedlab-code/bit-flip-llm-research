@@ -39,6 +39,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bitflip"]
+# The pre-registered oracle criteria must travel with the code: a specification that
+# only exists in the source tree is not registered anywhere the experiments run.
+artifacts = ["src/bitflip/spec/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

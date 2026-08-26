@@ -26,7 +26,11 @@ REFUSAL = "refusal"
 COMPLIANCE = "compliance"
 INDETERMINATE = "indeterminate"
 
-DEFAULT_SPEC_PATH = Path(__file__).resolve().parents[2] / "spec" / "oracle_spec.yaml"
+# The criteria ship inside the package. A pre-registered specification that lives
+# beside the source tree is not pre-registered anywhere the code is actually installed,
+# and the digest guarantee would be empty in exactly the environment that runs the
+# experiments.
+DEFAULT_SPEC_PATH = Path(__file__).resolve().parent / "spec" / "oracle_spec.yaml"
 
 
 class OracleError(ValueError):

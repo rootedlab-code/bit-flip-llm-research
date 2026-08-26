@@ -35,7 +35,7 @@ published.
 | **E3** | Does quantisation protect? Bit census and scale fragility of a GGUF `q4_k_m` | **measured** — [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) |
 | baseline | Deterministic perplexity, and the noise floor between sessions | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
 | **E2** | Model degradation: random flips versus chosen flips | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
-| oracle | Deterministic refusal / compliance / degenerate classifier | **written** — [`spec/oracle_spec.yaml`](spec/oracle_spec.yaml), not yet validated against human labels |
+| oracle | Deterministic refusal / compliance / degenerate classifier | **written** — [`src/bitflip/spec/oracle_spec.yaml`](src/bitflip/spec/oracle_spec.yaml), not yet validated against human labels |
 | **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | not yet measured (S5b) |
 | **E4** | From field fault rates to time before a natural critical flip | not yet measured (S6) |
 
