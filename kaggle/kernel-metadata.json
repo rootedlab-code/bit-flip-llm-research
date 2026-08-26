@@ -1,6 +1,6 @@
 {
   "id": "seb001010/bit-flip-e2-degradation",
-  "title": "bit-flip E2: how much does an LLM degrade under bit flips?",
+  "title": "bit-flip E2 degradation",
   "code_file": "bit-fragility.ipynb",
   "language": "python",
   "kernel_type": "notebook",

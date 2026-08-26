@@ -2,7 +2,9 @@
 name = "bitflip"
 version = "0.1.0"
 description = "Ricerca sperimentale sui bit-flip nei pesi dei modelli linguistici"
-requires-python = ">=3.13"
+# 3.11 is the floor: hashlib.file_digest arrived there, and Kaggle images
+# still ship 3.12.
+requires-python = ">=3.11"
 dependencies = [
     "numpy>=2.2",
     "safetensors>=0.4",
@@ -41,7 +43,7 @@ addopts = "-q --strict-markers"
 
 [tool.ruff]
 line-length = 90
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RET"]

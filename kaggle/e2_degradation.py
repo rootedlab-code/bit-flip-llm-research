@@ -26,13 +26,14 @@
 import subprocess
 import sys
 
+print(sys.version)
 subprocess.run(
     [
         sys.executable,
         "-m",
         "pip",
         "install",
-        "-q",
+        "--no-cache-dir",
         "git+https://github.com/rootedlab-code/bit-flip-llm-research",
     ],
     check=True,
