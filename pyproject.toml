@@ -16,6 +16,18 @@ inference = ["torch>=2.5", "transformers>=4.45"]
 [dependency-groups]
 dev = ["pytest>=8.3", "ruff>=0.7"]
 
+# La GPU di questa macchina (RTX 4060, driver CUDA 12.4) non puo eseguire le build
+# cu13x pubblicate su PyPI, e le librerie CUDA che si porterebbero dietro sono ~5 GB
+# di peso morto. La CPU e inoltre deterministica senza accorgimenti, come richiede il
+# Principio III. Se in futuro servisse la GPU, la strada e una build cu126.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
