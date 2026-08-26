@@ -207,8 +207,8 @@ Everything that runs a model — E2, E5, E6 — targets a model people actually 
 
 | role | model |
 |---|---|
-| subject | `Qwen/Qwen2.5-7B-Instruct` |
-| positive control | `huihui-ai/Qwen2.5-7B-Instruct-abliterated-v2` (ablation only, no further training) |
+| subject | `Qwen/Qwen3-4B-Instruct-2507` — current generation, ~3.4 M downloads |
+| positive control | `huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated` (ablation only, no further training) |
 
 A result on half a billion parameters says little to anyone running seven. Two
 consequences follow and both are binding: the model stays in `bfloat16` rather than

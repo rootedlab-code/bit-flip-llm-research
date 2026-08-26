@@ -119,13 +119,14 @@ from bitflip.oracle import (
 )
 from bitflip.probes import BENIGN, HARMFUL, build_probe_set
 
-# A model people actually deploy. A result on half a billion parameters says little to
-# anyone running seven, and the positive control is the pure-ablation build of the same
-# base -- not one that was further fine-tuned, which would confound the axis.
-BASE_REPO = "Qwen/Qwen2.5-7B-Instruct"
-BASE_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
-ABLITERATED_REPO = "huihui-ai/Qwen2.5-7B-Instruct-abliterated-v2"
-ABLITERATED_REVISION = "447ff10df7c9b7031f28eec54b9042a362d09696"
+# A model people actually deploy: Qwen3-4B-Instruct-2507 has some 3.4 million downloads.
+# A result on half a billion parameters says little to anyone running a current model,
+# and the positive control is the pure-ablation build of the same base -- not one that
+# was further fine-tuned, which would confound the axis the whole measurement rests on.
+BASE_REPO = "Qwen/Qwen3-4B-Instruct-2507"
+BASE_REVISION = "cdbee75f17c01a7cc42f958dc650907174af0554"
+ABLITERATED_REPO = "huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated"
+ABLITERATED_REVISION = "c9bd464550d4078c72af0dd22aa18d0437868ce3"
 
 # AdvBench, pinned to a commit rather than to a branch: a probe set that can change
 # under the experiment is not a probe set.
@@ -145,7 +146,7 @@ SEED = 0
 
 OUTPUT = Path("/kaggle/working")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-REQUIRED_GIB = 17.0  # 15.2 GB of weights, plus activations and the cache
+REQUIRED_GIB = 12.0  # 8.0 GB of weights, plus activations and the cache
 
 if torch.cuda.is_available():
     total = (
@@ -162,8 +163,7 @@ if torch.cuda.is_available():
     # Fail loudly rather than quietly substituting a smaller model: an experiment that
     # changes its subject without saying so is worse than one that does not run.
     assert total >= REQUIRED_GIB, (
-        f"{total:.1f} GiB of VRAM cannot hold {BASE_REPO}; "
-        f"{REQUIRED_GIB} GiB are needed. Set the accelerator to T4 x2."
+        f"{total:.1f} GiB of VRAM cannot hold {BASE_REPO}; {REQUIRED_GIB} GiB are needed."
     )
 else:
     raise RuntimeError("no GPU: a 7B subject is not measurable on these CPUs")
