@@ -42,10 +42,10 @@ subprocess.run(
 # %%
 import csv
 import itertools
+import os
 from pathlib import Path
 
 import numpy as np
-
 import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -66,14 +66,41 @@ CORPUS_FILE = "wikitext-2-raw-v1/test-00000-of-00001.parquet"
 
 WINDOW = 1024
 STRIDE = 512
-CORPUS_TOKENS = 32_768
+CORPUS_TOKENS_GPU = 32_768
+CORPUS_TOKENS_CPU = 8_192
 RANDOM_COUNTS = (1, 10, 100, 1_000, 10_000)
 TARGETED_COUNTS = (1, 2, 5, 10)
 SEEDS = (0, 1, 2, 3, 4)
 
 OUTPUT = Path("/kaggle/working")
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"device: {DEVICE} · numpy {np.__version__} · torch {torch.__version__}")
+
+
+def usable_cuda() -> tuple[bool, str]:
+    """Whether this GPU can actually run this torch build.
+
+    Kaggle hands out whichever accelerator is free, and a P100 (sm_60) paired with a
+    torch built for sm_70+ fails at the first kernel launch rather than at import. A
+    notebook meant to be re-run by strangers should say so and carry on, not crash.
+    """
+    if not torch.cuda.is_available():
+        return False, "no CUDA device"
+    major, minor = torch.cuda.get_device_capability()
+    name = torch.cuda.get_device_name(0)
+    supported = torch.cuda.get_arch_list()
+    if f"sm_{major}{minor}" not in supported:
+        return False, f"{name} is sm_{major}{minor}; this torch supports {supported}"
+    return True, f"{name} (sm_{major}{minor})"
+
+
+GPU_OK, GPU_REASON = usable_cuda()
+DEVICE = "cuda" if GPU_OK else "cpu"
+CORPUS_TOKENS = CORPUS_TOKENS_GPU if GPU_OK else CORPUS_TOKENS_CPU
+if not GPU_OK:
+    torch.set_num_threads(os.cpu_count() or 4)
+print(f"device: {DEVICE} — {GPU_REASON}")
+print(
+    f"numpy {np.__version__} · torch {torch.__version__} · corpus {CORPUS_TOKENS:,} tokens"
+)
 
 # %% [markdown]
 # ## Loading: bf16 patterns, float32 arithmetic
@@ -97,6 +124,10 @@ print(
 # WikiText-2 test split, so the absolute perplexity is comparable with the literature.
 # Only the *relative* degradation is used in the conclusions, but an absolute number a
 # reader can sanity-check is worth having.
+#
+# The corpus is shortened when this falls back to CPU. That makes the absolute figure
+# noisier, but every condition is measured on the same tokens, so the ratios that carry
+# the conclusions are unaffected.
 
 # %%
 import pyarrow.parquet as pq  # noqa: E402
