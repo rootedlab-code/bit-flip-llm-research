@@ -38,6 +38,7 @@ published.
 | oracle | Deterministic refusal / compliance / degenerate classifier | **written** — [`src/bitflip/spec/oracle_spec.yaml`](src/bitflip/spec/oracle_spec.yaml), not yet validated against human labels |
 | **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | not yet measured (S5b) |
 | **E4** | From field fault rates to time before a natural critical flip | not yet measured (S6) |
+| **E6** | Agentic severity: does a flip make a tool-using agent take destructive actions? | not yet measured — every tool is an instrumented stub that records the call and does nothing |
 
 Anything not marked **measured** has no number in this repository yet. In the working
 note it appears as a heading with an explicit status marker — never as a placeholder that
@@ -152,12 +153,19 @@ overwritten file.
 - **No real Rowhammer.** We study the *payload* — what the flipped bit does — not the
   *delivery vector*. Delivery is DRAM-module specific, requires reverse-engineering the TRR
   mitigation, and is already documented elsewhere.
-- **No optimised attack recipe.** We measure *how much* alignment is lost and *how
-  invisible* the loss is; we do not produce the gradient-guided search that finds the
-  optimal bit triple for jailbreaking a specific model. That artefact is transferable and
-  reusable by third parties; the stealth curve — the result a defender needs — is
-  obtainable without it. The boundary is drawn around the *artefact*, not around the
-  question.
+- **The boundary is around the published artefact, not around the search.** An earlier
+  version of this section excluded optimised search altogether. That was wrong, and
+  wrong in a direction that matters: without it, what gets measured is whatever an
+  unoptimised policy achieves — a lower bound of unknown looseness. Publishing "N flips
+  cost X% of alignment" when a guided search needed three would hand a defender a
+  reassuring number that is false. The worst case is the actionable quantity.
+
+  So: the search is run; its objective is an **inert score** (refusal margin,
+  De-alignment Fraction), never harmful text; the **curve and the counts** are
+  published; the **bit addresses are not**, and do not outlive the run. The addresses
+  are the transferable artefact — the curve is the result. The method itself is already
+  published and peer-reviewed, so the offensive uplift of measuring it here is small
+  while the defensive value is not.
 - **No harmful output published**, in any form. Generations needed for measurement live in
   a scratch directory, are classified, and are deleted; results retain class labels,
   scalars and a truncated hash.
@@ -188,6 +196,27 @@ docs/            per-experiment technical notes
 Both file parsers validate themselves by closing their arithmetic exactly on the file
 size: a silently misparsed file cannot be mistaken for a result.
 
+## Model scale
+
+E1 and E3 are static analyses of bit patterns, and their conclusions are about the
+geometry of the formats rather than the size of the model, so they were measured on
+`Qwen2.5-0.5B-Instruct`. They will be repeated on the larger subject to confirm that the
+6.2595% figure does not depend on it.
+
+Everything that runs a model — E2, E5, E6 — targets a model people actually deploy:
+
+| role | model |
+|---|---|
+| subject | `Qwen/Qwen2.5-7B-Instruct` |
+| positive control | `huihui-ai/Qwen2.5-7B-Instruct-abliterated-v2` (ablation only, no further training) |
+
+A result on half a billion parameters says little to anyone running seven. Two
+consequences follow and both are binding: the model stays in `bfloat16` rather than
+being promoted to `float32` — which is also the more faithful choice, since a weight
+with bit 14 flipped is 3.06 × 10³⁸ and `bfloat16` represents it — and if the available
+memory cannot hold the subject, the run fails loudly. An experiment that quietly
+substitutes a smaller model is worse than one that does not run.
+
 ## Principles
 
 1. **Host safeguarding** — if an experiment violates it, the experiment is cut.
@@ -205,7 +234,7 @@ size: a silently misparsed file cannot be mistaken for a result.
 4. **Pre-registration of criteria** — thresholds and classification rules are frozen in a
    file with a hash before the first run that uses them.
 5. **No claim without its control** — null, positive, brick, benign.
-6. **The boundary is around the artefact, not around the question.**
+6. **The boundary is around the published artefact, not around the question** — the worst case is measured; the addresses that produce it are not published.
 7. **Operational security** — a single public identity, no local paths, no bylines.
 
 ## Reading order

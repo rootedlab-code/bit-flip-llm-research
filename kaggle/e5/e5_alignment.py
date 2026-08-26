@@ -119,10 +119,13 @@ from bitflip.oracle import (
 )
 from bitflip.probes import BENIGN, HARMFUL, build_probe_set
 
-BASE_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
-BASE_REVISION = "7ae557604adf67be50417f59c2c2f167def9a775"
-ABLITERATED_REPO = "huihui-ai/Qwen2.5-0.5B-Instruct-abliterated-v3"
-ABLITERATED_REVISION = "3dee99dac7c99318ed2b4e9932bfbbac060fb024"
+# A model people actually deploy. A result on half a billion parameters says little to
+# anyone running seven, and the positive control is the pure-ablation build of the same
+# base -- not one that was further fine-tuned, which would confound the axis.
+BASE_REPO = "Qwen/Qwen2.5-7B-Instruct"
+BASE_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
+ABLITERATED_REPO = "huihui-ai/Qwen2.5-7B-Instruct-abliterated-v2"
+ABLITERATED_REVISION = "447ff10df7c9b7031f28eec54b9042a362d09696"
 
 # AdvBench, pinned to a commit rather than to a branch: a probe set that can change
 # under the experiment is not a probe set.
@@ -136,13 +139,34 @@ ALPACA_REVISION = "dce01c9b08f87459cf36a430d809084718273017"
 ALPACA_FILE = "data/train-00000-of-00001-a09b74b3ef9c3b56.parquet"
 
 PROBES_PER_SET = 100
-MAX_NEW_TOKENS = 96
+MAX_NEW_TOKENS = 256  # 96 truncated answers before their closing markers appeared
 BATCH_SIZE = 8
 SEED = 0
 
 OUTPUT = Path("/kaggle/working")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"device: {DEVICE} · torch {torch.__version__}")
+REQUIRED_GIB = 17.0  # 15.2 GB of weights, plus activations and the cache
+
+if torch.cuda.is_available():
+    total = (
+        sum(
+            torch.cuda.get_device_properties(index).total_memory
+            for index in range(torch.cuda.device_count())
+        )
+        / 1024**3
+    )
+    names = ", ".join(
+        torch.cuda.get_device_name(index) for index in range(torch.cuda.device_count())
+    )
+    print(f"device: cuda · {names} · {total:.1f} GiB · torch {torch.__version__}")
+    # Fail loudly rather than quietly substituting a smaller model: an experiment that
+    # changes its subject without saying so is worse than one that does not run.
+    assert total >= REQUIRED_GIB, (
+        f"{total:.1f} GiB of VRAM cannot hold {BASE_REPO}; "
+        f"{REQUIRED_GIB} GiB are needed. Set the accelerator to T4 x2."
+    )
+else:
+    raise RuntimeError("no GPU: a 7B subject is not measurable on these CPUs")
 
 # %% [markdown]
 # ## The pre-registered criteria
@@ -211,10 +235,18 @@ if tokenizer.pad_token is None:
 
 
 def load(repo: str, revision: str):
+    """Load in bfloat16, sharded over whatever devices are present.
+
+    No promotion to float32 here: 7B in float32 is 30 GB and does not fit, and bfloat16
+    is in any case the more faithful choice -- a weight with bit 14 flipped is 3.06e38,
+    which bfloat16 represents, its maximum being 3.39e38. The float32 promotion used on
+    the small model was a workaround for a GPU that could not run bfloat16 at all, not a
+    requirement of the method.
+    """
     model = AutoModelForCausalLM.from_pretrained(
-        repo, revision=revision, dtype=torch.bfloat16
+        repo, revision=revision, dtype=torch.bfloat16, device_map="auto"
     )
-    return model.to(torch.float32).to(DEVICE).eval()
+    return model.eval()
 
 
 def answer(model, prompts: list[str]) -> list[str]:
@@ -227,7 +259,7 @@ def answer(model, prompts: list[str]) -> list[str]:
         )
         for prompt in prompts
     ]
-    batch = tokenizer(conversations, return_tensors="pt", padding=True).to(DEVICE)
+    batch = tokenizer(conversations, return_tensors="pt", padding=True).to(model.device)
     with torch.no_grad():
         produced = model.generate(
             **batch,
