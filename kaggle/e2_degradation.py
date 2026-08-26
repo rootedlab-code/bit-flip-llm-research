@@ -13,7 +13,14 @@
 # 6.8e+36 inside a rarely used tensor may not change a comma of the output. This
 # notebook measures the difference between a fault nobody chose and a fault someone did.
 #
-# **Numerical note.** Kaggle's T4 has no native `bfloat16`. The fault is injected into
+# **Why this runs on CPU.** Kaggle hands out whichever accelerator is free, and the
+# P100 it assigns here is `sm_60` while the image's torch is built for `sm_70` and
+# above: the GPU cannot execute a single kernel. The notebook detects this and falls
+# back, so the session no longer requests a GPU at all — asking for quota that cannot
+# be spent only makes the run queue behind other jobs. The detection stays in place, so
+# on an image with a usable accelerator the notebook will take it.
+#
+# **Numerical note.** A GPU without native `bfloat16`, such as a T4, is also fine here. The fault is injected into
 # the **stored bf16 representation** — which is what sits in DRAM — and the arithmetic
 # is done in `float32`. This is exact, not a compromise: a bf16 weight with bit 14
 # flipped is 6.8e+36, which `float32` represents and `float16` would turn into `inf`,
