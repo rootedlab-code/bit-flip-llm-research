@@ -57,6 +57,7 @@ from bitflip.inject import (
     largest_magnitude_flips,
     random_flips,
 )
+from bitflip.damage import INTACT, damage_class
 from bitflip.metrics import agreement, evaluate, set_determinism
 
 BASE_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -66,6 +67,7 @@ CORPUS_FILE = "wikitext-2-raw-v1/test-00000-of-00001.parquet"
 
 WINDOW = 1024
 STRIDE = 512
+VOCABULARY = 151_936  # Qwen2.5; a uniform output has exactly this perplexity
 CORPUS_TOKENS_GPU = 32_768
 CORPUS_TOKENS_CPU = 8_192
 RANDOM_COUNTS = (1, 10, 100, 1_000, 10_000)
@@ -182,6 +184,7 @@ for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
     with flipped_model(model, flips):
         value, predictions = measure()
     kept = agreement(baseline_predictions, predictions)
+    verdict = damage_class(value, kept, VOCABULARY)
     rows.append(
         {
             "policy": "random",
@@ -190,11 +193,12 @@ for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
             "perplexity": value,
             "ratio_to_baseline": value / baseline,
             "top1_agreement": kept,
+            "damage_class": verdict,
         }
     )
     print(
-        f"random {count:>6} flips, seed {seed}: "
-        f"ppl {value:>12.4f}  x{value / baseline:>10.4f}  agreement {kept:.4f}"
+        f"random {count:>6} flips, seed {seed}: ppl {value:>12.4f}  "
+        f"agreement {kept:.4f}  {verdict}"
     )
 
 # %% [markdown]
@@ -222,6 +226,7 @@ for count in TARGETED_COUNTS:
     with flipped_model(model, flips):
         value, predictions = measure()
     kept = agreement(baseline_predictions, predictions)
+    verdict = damage_class(value, kept, VOCABULARY)
     rows.append(
         {
             "policy": "targeted",
@@ -230,11 +235,12 @@ for count in TARGETED_COUNTS:
             "perplexity": value,
             "ratio_to_baseline": value / baseline,
             "top1_agreement": kept,
+            "damage_class": verdict,
         }
     )
     print(
-        f"targeted {count:>4} flips        : "
-        f"ppl {value:>12.4f}  x{value / baseline:>10.4f}  agreement {kept:.4f}"
+        f"targeted {count:>4} flips        : ppl {value:>12.4f}  "
+        f"agreement {kept:.4f}  {verdict}"
     )
 
 # %% [markdown]
@@ -249,6 +255,7 @@ rows.append(
         "perplexity": baseline,
         "ratio_to_baseline": 1.0,
         "top1_agreement": 1.0,
+        "damage_class": INTACT,
     }
 )
 OUTPUT.mkdir(exist_ok=True)
@@ -267,23 +274,28 @@ print(f"{len(rows)} measurements written to e2-degradation.csv")
 # Perplexity saturates at the vocabulary size — a destroyed model outputs a uniform
 # distribution, and every degree of destruction then looks identical. Top-1 agreement
 # with the undamaged model does not saturate, so it is reported alongside.
+#
+# The ratio to baseline is *not* used in this summary: chosen faults overflow the
+# arithmetic and produce NaN, and a leverage figure computed from NaN is not a figure.
+# The comparison runs on damage classes, which are defined for every outcome.
 
 # %%
 targeted_one = next(r for r in rows if r["policy"] == "targeted" and r["flips"] == 1)
 by_count = {}
 for row in rows:
     if row["policy"] == "random":
-        by_count.setdefault(row["flips"], []).append(row["ratio_to_baseline"])
+        by_count.setdefault(row["flips"], []).append(row["damage_class"])
 
-chosen_ratio = targeted_one["ratio_to_baseline"]
-print(f"one chosen flip costs x{chosen_ratio:.4f} of baseline perplexity\n")
+print(f"one chosen flip: {targeted_one['damage_class']}\n")
+print("share of runs that left the model usable, by fault count:")
 for count in sorted(by_count):
-    median = sorted(by_count[count])[len(by_count[count]) // 2]
-    print(f"{count:>6} random flips: median x{median:.4f}")
+    verdicts = by_count[count]
+    intact = sum(1 for v in verdicts if v == INTACT)
+    print(f"{count:>6} random flips: {intact}/{len(verdicts)} intact")
 
-print("\ntop-1 agreement with the undamaged model (does not saturate):")
+print("\nevery measurement, by damage class:")
 for row in sorted(rows, key=lambda r: (r["policy"], r["flips"], r["seed"])):
     print(
-        f"  {row['policy']:<9} {row['flips']:>6} flips "
-        f"seed {row['seed']:>2}: {row['top1_agreement']:.4f}"
+        f"  {row['policy']:<9} {row['flips']:>6} flips seed {row['seed']:>2}: "
+        f"agreement {row['top1_agreement']:.4f}  {row['damage_class']}"
     )
