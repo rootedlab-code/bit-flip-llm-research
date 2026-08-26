@@ -51,13 +51,13 @@ from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from bitflip.codec import BF16, from_float32
+from bitflip.damage import INTACT, damage_class
 from bitflip.inject import (
     TOP_EXPONENT_BIT,
     flipped_model,
     largest_magnitude_flips,
     random_flips,
 )
-from bitflip.damage import INTACT, damage_class
 from bitflip.metrics import agreement, evaluate, set_determinism
 
 BASE_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
