@@ -44,6 +44,8 @@ import csv
 import itertools
 from pathlib import Path
 
+import numpy as np
+
 import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -71,7 +73,7 @@ SEEDS = (0, 1, 2, 3, 4)
 
 OUTPUT = Path("/kaggle/working")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"device: {DEVICE}")
+print(f"device: {DEVICE} · numpy {np.__version__} · torch {torch.__version__}")
 
 # %% [markdown]
 # ## Loading: bf16 patterns, float32 arithmetic

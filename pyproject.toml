@@ -6,9 +6,12 @@ description = "Ricerca sperimentale sui bit-flip nei pesi dei modelli linguistic
 # still ship 3.12.
 requires-python = ">=3.11"
 dependencies = [
-    "numpy>=2.2",
-    "safetensors>=0.4",
-    "pyyaml>=6.0",
+    # Deliberately low floors: nothing here needs a recent numpy, and a high floor
+    # forces an upgrade on hosted images whose other packages are compiled against
+    # the numpy they ship -- which breaks them.
+    "numpy>=1.24",
+    "safetensors>=0.3",
+    "pyyaml>=5.4",
 ]
 
 [project.optional-dependencies]

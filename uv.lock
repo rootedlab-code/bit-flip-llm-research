@@ -60,9 +60,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.26" },
-    { name = "numpy", specifier = ">=2.2" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "safetensors", specifier = ">=0.4" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pyyaml", specifier = ">=5.4" },
+    { name = "safetensors", specifier = ">=0.3" },
     { name = "torch", marker = "extra == 'inference'", specifier = ">=2.5", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", marker = "extra == 'inference'", specifier = ">=4.45" },
 ]
