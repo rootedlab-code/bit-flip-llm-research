@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from bitflip.codec import BF16, FP16, FloatFormat
+from bitflip.fragility import CODE_SPACE
 
 HEADER_LENGTH_BYTES = 8
 
@@ -166,7 +167,6 @@ class SafetensorsFile:
             yield entry, self.codes(entry.name)
 
 
-CODE_SPACE = 1 << 16
 HISTOGRAM_CHUNK = 1 << 24
 
 
