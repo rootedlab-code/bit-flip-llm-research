@@ -1,0 +1,35 @@
+[project]
+name = "bitflip"
+version = "0.1.0"
+description = "Ricerca sperimentale sui bit-flip nei pesi dei modelli linguistici"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.2",
+    "safetensors>=0.4",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+download = ["huggingface-hub>=0.26"]
+inference = ["torch>=2.5", "transformers>=4.45"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.7"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bitflip"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 90
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RET"]
