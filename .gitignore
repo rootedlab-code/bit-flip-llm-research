@@ -6,3 +6,10 @@ __pycache__/
 models/
 scratch/
 results/**/*.jsonl
+
+# Internal working documents: research plan, constitution and agent tooling.
+# The published record is docs/public/paper.md.
+PLAN-*.md
+CLAUDE.md
+.claude/
+.specify/
