@@ -33,9 +33,9 @@ published.
 |---|---|---|
 | **E1** | Fragility hierarchy of the 16 bits of a `bfloat16` weight | **measured** — [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md) |
 | **E3** | Does quantisation protect? Bit census and scale fragility of a GGUF `q4_k_m` | **measured** — [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) |
-| baseline | Deterministic perplexity and task accuracy | not yet measured (S4) |
-| **E2** | Model degradation: random flips versus targeted flips | not yet measured (S5) |
-| oracle | Deterministic refusal / compliance / degenerate classifier | not yet written (S5a) |
+| baseline | Deterministic perplexity, and the noise floor between sessions | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
+| **E2** | Model degradation: random flips versus chosen flips | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
+| oracle | Deterministic refusal / compliance / degenerate classifier | **written** — [`spec/oracle_spec.yaml`](spec/oracle_spec.yaml), not yet validated against human labels |
 | **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | not yet measured (S5b) |
 | **E4** | From field fault rates to time before a natural critical flip | not yet measured (S6) |
 
