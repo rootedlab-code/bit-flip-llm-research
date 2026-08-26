@@ -13,12 +13,18 @@
 # 6.8e+36 inside a rarely used tensor may not change a comma of the output. This
 # notebook measures the difference between a fault nobody chose and a fault someone did.
 #
-# **Why this runs on CPU.** Kaggle hands out whichever accelerator is free, and the
-# P100 it assigns here is `sm_60` while the image's torch is built for `sm_70` and
-# above: the GPU cannot execute a single kernel. The notebook detects this and falls
-# back, so the session no longer requests a GPU at all — asking for quota that cannot
-# be spent only makes the run queue behind other jobs. The detection stays in place, so
-# on an image with a usable accelerator the notebook will take it.
+# **About the accelerator.** Kaggle hands out whichever GPU is free. The P100 it often
+# assigns is `sm_60`, and recent PyTorch wheels dropped Pascal to make room for
+# Blackwell — the preinstalled build carries `sm_70` upwards only, so it cannot launch
+# a single kernel on that card. This is a property of the build, not of the hardware:
+# `torch==2.6.0+cu124` still ships `sm_60` and runs on it at about 5,400 tokens/s of
+# scoring, against roughly 200 on the four vCPUs of a CPU session.
+#
+# The first cell therefore reads the compute capability *before* importing torch, and
+# installs the matching stack when the card is older than the shipped build supports.
+# `torchvision` has to come along: the image's copy is compiled against the torch being
+# replaced, and leaving it in place makes `transformers` fail on import with
+# `operator torchvision::nms does not exist`.
 #
 # **Numerical note.** A GPU without native `bfloat16`, such as a T4, also works
 # here. The fault is injected into
@@ -35,6 +41,48 @@ import subprocess
 import sys
 
 print(sys.version)
+
+LEGACY_TORCH = ("torch==2.6.0", "torchvision==0.21.0", "torchaudio==2.6.0")
+LEGACY_INDEX = "https://download.pytorch.org/whl/cu124"
+OLDEST_SHIPPED_CAPABILITY = 7.0
+
+
+def compute_capability() -> float | None:
+    """The GPU's compute capability, read without importing torch.
+
+    It has to happen before the import: torch cannot be swapped underneath a process
+    that has already loaded it, and by the time torch could tell us the card is
+    unsupported it is too late to do anything about it.
+    """
+    probe = subprocess.run(
+        ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return None
+    return float(probe.stdout.strip().splitlines()[0])
+
+
+capability = compute_capability()
+print(f"compute capability: {capability}")
+if capability is not None and capability < OLDEST_SHIPPED_CAPABILITY:
+    print(f"older than the shipped build supports; installing {LEGACY_TORCH[0]}")
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "--no-cache-dir",
+            *LEGACY_TORCH,
+            "--index-url",
+            LEGACY_INDEX,
+        ],
+        check=True,
+    )
+
 subprocess.run(
     [
         sys.executable,

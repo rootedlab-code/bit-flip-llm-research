@@ -1,7 +1,7 @@
 {
-  "id": "seb001010/bit-flip-e2-degradation",
-  "title": "bit-flip E2 degradation",
-  "code_file": "bit-fragility.ipynb",
+  "id": "seb001010/bit-flip-gpu-probe",
+  "title": "bit-flip gpu probe",
+  "code_file": "gpu-probe.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
