@@ -65,13 +65,16 @@ def sliding_windows(
             return
 
 
-def perplexity(
+def evaluate(
     score: ScoreFunction,
     token_ids: torch.Tensor,
     window: int = DEFAULT_WINDOW,
     stride: int = DEFAULT_STRIDE,
-) -> float:
-    """Sliding-window perplexity: exp of the mean per-token negative log-likelihood.
+) -> tuple[float, torch.Tensor]:
+    """Perplexity and the top-1 predicted token at every scored position, in one pass.
+
+    Both come from the same forward passes because running the model twice to get two
+    views of the same logits would double the cost of every measurement.
 
     `score` receives the tokens of one window and returns logits of shape
     (length, vocabulary). Raises `ValueError` on sequences that are too short.
@@ -82,16 +85,39 @@ def perplexity(
 
     total_nll = 0.0
     total_tokens = 0
+    predicted = []
     for start, end, first in sliding_windows(token_ids.numel(), window, stride):
         chunk = token_ids[start:end]
         logits = score(chunk).reshape(chunk.numel(), -1)
         targets = chunk[first:]
-        predictions = logits[first - 1 : -1]
+        predictions = logits[first - 1 : -1].float()
         total_nll += float(
-            torch.nn.functional.cross_entropy(
-                predictions.float(), targets, reduction="sum"
-            )
+            torch.nn.functional.cross_entropy(predictions, targets, reduction="sum")
         )
         total_tokens += targets.numel()
+        predicted.append(predictions.argmax(dim=-1))
 
-    return math.exp(total_nll / total_tokens)
+    return math.exp(total_nll / total_tokens), torch.cat(predicted)
+
+
+def perplexity(
+    score: ScoreFunction,
+    token_ids: torch.Tensor,
+    window: int = DEFAULT_WINDOW,
+    stride: int = DEFAULT_STRIDE,
+) -> float:
+    """Sliding-window perplexity: exp of the mean per-token negative log-likelihood."""
+    return evaluate(score, token_ids, window, stride)[0]
+
+
+def agreement(reference: torch.Tensor, observed: torch.Tensor) -> float:
+    """The fraction of positions where two runs predict the same next token.
+
+    Perplexity saturates: once a model is broken its output is uniform and the figure
+    pins to the vocabulary size, so every degree of destruction looks identical.
+    Agreement does not saturate — it falls smoothly from 1 to chance — which is what
+    makes it possible to tell a damaged model from a destroyed one.
+    """
+    if reference.shape != observed.shape:
+        raise ValueError(f"shapes differ: {reference.shape} vs {observed.shape}")
+    return float((reference == observed).to(torch.float64).mean())

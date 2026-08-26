@@ -57,7 +57,7 @@ from bitflip.inject import (
     largest_magnitude_flips,
     random_flips,
 )
-from bitflip.metrics import perplexity, set_determinism
+from bitflip.metrics import agreement, evaluate, set_determinism
 
 BASE_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
 BASE_REVISION = "7ae557604adf67be50417f59c2c2f167def9a775"
@@ -144,8 +144,8 @@ def score(chunk: torch.Tensor) -> torch.Tensor:
         return model(chunk.unsqueeze(0)).logits[0]
 
 
-def measure() -> float:
-    return perplexity(score, token_ids, window=WINDOW, stride=STRIDE)
+def measure() -> tuple[float, torch.Tensor]:
+    return evaluate(score, token_ids, window=WINDOW, stride=STRIDE)
 
 
 # %% [markdown]
@@ -155,17 +155,18 @@ def measure() -> float:
 # reproduce the baseline exactly. Without both, no later difference is attributable.
 
 # %%
-baseline = measure()
-repeat = measure()
+baseline, baseline_predictions = measure()
+repeat, repeat_predictions = measure()
 print(f"baseline perplexity : {baseline!r}")
 print(f"second run          : {repeat!r}")
 print(f"identical           : {baseline == repeat}")
 
 with flipped_model(model, []):
-    null_control = measure()
+    null_control, null_predictions = measure()
 print(f"zero flips          : {null_control!r}  identical: {null_control == baseline}")
 assert baseline == repeat, "the measurement is not deterministic; stop here"
 assert null_control == baseline, "the null control does not reproduce the baseline"
+assert agreement(baseline_predictions, repeat_predictions) == 1.0
 
 # %% [markdown]
 # ## Random faults — the cosmic-ray model
@@ -179,7 +180,8 @@ rows = []
 for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
     flips = random_flips(parameter_sizes, count, seed=seed)
     with flipped_model(model, flips):
-        value = measure()
+        value, predictions = measure()
+    kept = agreement(baseline_predictions, predictions)
     rows.append(
         {
             "policy": "random",
@@ -187,19 +189,27 @@ for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
             "seed": seed,
             "perplexity": value,
             "ratio_to_baseline": value / baseline,
+            "top1_agreement": kept,
         }
     )
     print(
         f"random {count:>6} flips, seed {seed}: "
-        f"ppl {value:>12.4f}  x{value / baseline:.4f}"
+        f"ppl {value:>12.4f}  x{value / baseline:>10.4f}  agreement {kept:.4f}"
     )
 
 # %% [markdown]
-# ## Chosen faults — the top exponent bit of the largest weights
+# ## Chosen faults — the top exponent bit, on a weight the flip can actually amplify
 #
-# The policy the literature finds effective. E1 explains why it works without knowing
-# the model: that bit is zero in 100% of weights, so the flip always amplifies. The only
-# extra knowledge needed is where the large weights are.
+# The naive reading of E1 is a trap, and the first run of this notebook fell into it.
+# "Bit 14 is zero in 100% of weights, so hit the largest weight" is wrong: the largest
+# weights are precisely those with |w| ≥ 2, which is exactly the condition for bit 14 to
+# be **already set**. Flipping it there divides by 2¹²⁸ and does nothing. In this model
+# all 1000 largest weights are in that category.
+#
+# A second trap sits behind the first: among the weights the flip does amplify, the
+# largest overflow. A weight in [1, 2) times 2¹²⁸ exceeds the bfloat16 maximum and
+# becomes NaN — total destruction rather than corruption. `largest_magnitude_flips`
+# therefore picks the largest weight the flip amplifies **while staying finite**.
 
 # %%
 codes = {
@@ -210,7 +220,8 @@ codes = {
 for count in TARGETED_COUNTS:
     flips = largest_magnitude_flips(codes, count, bit=TOP_EXPONENT_BIT)
     with flipped_model(model, flips):
-        value = measure()
+        value, predictions = measure()
+    kept = agreement(baseline_predictions, predictions)
     rows.append(
         {
             "policy": "targeted",
@@ -218,10 +229,12 @@ for count in TARGETED_COUNTS:
             "seed": -1,
             "perplexity": value,
             "ratio_to_baseline": value / baseline,
+            "top1_agreement": kept,
         }
     )
     print(
-        f"targeted {count:>4} flips        : ppl {value:>12.4f}  x{value / baseline:.4f}"
+        f"targeted {count:>4} flips        : "
+        f"ppl {value:>12.4f}  x{value / baseline:>10.4f}  agreement {kept:.4f}"
     )
 
 # %% [markdown]
@@ -235,6 +248,7 @@ rows.append(
         "seed": -1,
         "perplexity": baseline,
         "ratio_to_baseline": 1.0,
+        "top1_agreement": 1.0,
     }
 )
 OUTPUT.mkdir(exist_ok=True)
@@ -249,6 +263,10 @@ print(f"{len(rows)} measurements written to e2-degradation.csv")
 #
 # How many random faults it takes to do the damage of one chosen fault. That ratio is
 # the price of an attacker being able to pick the address.
+#
+# Perplexity saturates at the vocabulary size — a destroyed model outputs a uniform
+# distribution, and every degree of destruction then looks identical. Top-1 agreement
+# with the undamaged model does not saturate, so it is reported alongside.
 
 # %%
 targeted_one = next(r for r in rows if r["policy"] == "targeted" and r["flips"] == 1)
@@ -262,3 +280,10 @@ print(f"one chosen flip costs x{chosen_ratio:.4f} of baseline perplexity\n")
 for count in sorted(by_count):
     median = sorted(by_count[count])[len(by_count[count]) // 2]
     print(f"{count:>6} random flips: median x{median:.4f}")
+
+print("\ntop-1 agreement with the undamaged model (does not saturate):")
+for row in sorted(rows, key=lambda r: (r["policy"], r["flips"], r["seed"])):
+    print(
+        f"  {row['policy']:<9} {row['flips']:>6} flips "
+        f"seed {row['seed']:>2}: {row['top1_agreement']:.4f}"
+    )

@@ -192,3 +192,47 @@ def test_an_unsupported_dtype_is_refused():
         flipped_model(model, [Flip("weight", 0, 14)]),
     ):
         pass
+
+
+def test_targeted_faults_skip_weights_whose_bit_is_already_set():
+    """The bug this test exists for: the largest weights are the wrong target.
+
+    A weight of 200 has |w| >= 2, so bit 14 is already 1 and flipping it divides by
+    2**128 -- no damage at all. The policy must pass it over for the largest weight
+    that the flip actually amplifies.
+    """
+    codes = {"w": from_float32(np.array([200.0, 0.9, 0.02], np.float32), BF16)}
+
+    assert largest_magnitude_flips(codes, count=1) == [Flip("w", 1, TOP_EXPONENT_BIT)]
+
+
+def test_targeted_faults_ignore_a_tensor_with_no_amplifying_candidate():
+    codes = {
+        "all_large": from_float32(np.array([200.0, 300.0], np.float32), BF16),
+        "usable": from_float32(np.array([0.5], np.float32), BF16),
+    }
+
+    assert largest_magnitude_flips(codes, count=2) == [
+        Flip("usable", 0, TOP_EXPONENT_BIT)
+    ]
+
+
+def test_the_chosen_target_amplifies_without_overflowing():
+    """1.9 x 2**128 exceeds the bfloat16 maximum and would be NaN, not damage."""
+    codes = from_float32(np.array([200.0, 1.9, 0.9], np.float32), BF16)
+    flip = largest_magnitude_flips({"w": codes}, count=1)[0]
+
+    before = abs(float(to_float32(codes[flip.index], BF16)))
+    after = abs(float(to_float32(apply_flips(codes, [flip])[flip.index], BF16)))
+
+    assert flip.index == 2
+    assert after / before == 2.0**128
+
+
+def test_overflow_can_be_allowed_explicitly():
+    codes = from_float32(np.array([200.0, 1.9, 0.9], np.float32), BF16)
+
+    flip = largest_magnitude_flips({"w": codes}, count=1, require_finite=False)[0]
+
+    assert flip.index == 1
+    assert not np.isfinite(to_float32(apply_flips(codes, [flip])[flip.index], BF16))

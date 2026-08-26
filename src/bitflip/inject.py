@@ -64,22 +64,43 @@ def largest_magnitude_flips(
     count: int,
     fmt: FloatFormat = BF16,
     bit: int = TOP_EXPONENT_BIT,
+    require_finite: bool = True,
 ) -> list[Flip]:
-    """Chosen faults: the top exponent bit of the largest-magnitude weights.
+    """Chosen faults: the largest weight the flip amplifies while staying finite.
 
-    This is the policy the literature finds effective, and E1 explains why it works
-    without knowing the model: that bit is zero in 100% of weights, so the flip always
-    amplifies. What is added here is the only extra information needed -- where the
-    large weights are.
+    Two traps sit between the naive reading of E1 and a flip that actually does damage.
+
+    The first: "bit 14 is zero in 100% of weights, so hit the largest weight" is wrong.
+    The weights of largest magnitude are precisely those with |w| >= 2, which is exactly
+    the condition for bit 14 to already be **set**; flipping it there divides by 2**128
+    rather than multiplying, and the attack quietly does nothing.
+
+    The second: among the weights the flip does amplify, the largest ones overflow. A
+    weight in [1, 2) multiplied by 2**128 exceeds the bfloat16 maximum and becomes NaN,
+    which destroys the model outright instead of corrupting it. When `require_finite`
+    is set, those are excluded too, and what is chosen is the largest weight the flip
+    can amplify while leaving a representable number behind.
     """
-    from bitflip.codec import to_float32
+    from bitflip.codec import flip_bit, to_float32
 
     ranked: list[tuple[float, str, int]] = []
     for name, tensor_codes in codes.items():
-        values = np.abs(to_float32(tensor_codes, fmt).astype(np.float64))
-        take = min(count, values.size)
-        top = np.argpartition(values, -take)[-take:]
-        ranked.extend((float(values[index]), name, int(index)) for index in top)
+        values = to_float32(tensor_codes, fmt).astype(np.float64)
+        after = to_float32(flip_bit(tensor_codes, bit, fmt), fmt).astype(np.float64)
+        usable = (((tensor_codes >> np.uint16(bit)) & np.uint16(1)) == 0) & np.isfinite(
+            values
+        )
+        if require_finite:
+            usable &= np.isfinite(after)
+        positions = np.flatnonzero(usable)
+        if positions.size == 0:
+            continue
+        magnitudes = np.abs(values[positions])
+        take = min(count, magnitudes.size)
+        top = np.argpartition(magnitudes, -take)[-take:]
+        ranked.extend(
+            (float(magnitudes[index]), name, int(positions[index])) for index in top
+        )
 
     ranked.sort(key=lambda item: -item[0])
     return [Flip(name, index, bit) for _, name, index in ranked[:count]]

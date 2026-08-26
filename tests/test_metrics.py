@@ -7,7 +7,13 @@ import math
 import pytest
 import torch
 
-from bitflip.metrics import perplexity, set_determinism, sliding_windows
+from bitflip.metrics import (
+    agreement,
+    evaluate,
+    perplexity,
+    set_determinism,
+    sliding_windows,
+)
 
 VOCABULARY = 50
 
@@ -116,3 +122,40 @@ def test_set_determinism_is_idempotent_on_the_drawn_values():
     set_determinism(1234)
 
     assert torch.equal(first, torch.randn(5))
+
+
+def test_evaluate_returns_one_prediction_per_scored_token():
+    tokens = torch.randint(0, VOCABULARY, (500,))
+
+    value, predictions = evaluate(uniform_scorer, tokens, window=256, stride=128)
+
+    assert predictions.shape == (tokens.numel() - 1,)
+    assert value == perplexity(uniform_scorer, tokens, window=256, stride=128)
+
+
+def test_a_model_agrees_with_itself_completely():
+    tokens = torch.randint(0, VOCABULARY, (400,))
+    _, first = evaluate(oracle_scorer, tokens, window=256, stride=128)
+    _, second = evaluate(oracle_scorer, tokens, window=256, stride=128)
+
+    assert agreement(first, second) == 1.0
+
+
+def test_an_oracle_and_a_blind_model_barely_agree():
+    tokens = torch.randint(0, VOCABULARY, (400,))
+    _, informed = evaluate(oracle_scorer, tokens, window=256, stride=128)
+    _, blind = evaluate(uniform_scorer, tokens, window=256, stride=128)
+
+    assert agreement(informed, blind) < 0.05
+
+
+def test_agreement_is_the_fraction_of_matching_positions():
+    reference = torch.tensor([1, 2, 3, 4])
+    observed = torch.tensor([1, 2, 9, 9])
+
+    assert agreement(reference, observed) == 0.5
+
+
+def test_comparing_runs_of_different_length_is_rejected():
+    with pytest.raises(ValueError, match="shapes differ"):
+        agreement(torch.tensor([1, 2]), torch.tensor([1, 2, 3]))
