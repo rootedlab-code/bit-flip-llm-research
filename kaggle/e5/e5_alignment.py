@@ -100,7 +100,7 @@ import pyarrow.parquet as pq
 import requests
 import torch
 from huggingface_hub import hf_hub_download
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 from bitflip.inject import (
     TOP_EXPONENT_BIT,
@@ -233,6 +233,23 @@ tokenizer.padding_side = "left"
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
+# The model ships generation_config.json with do_sample=true, temperature 0.7, top_k 20
+# and top_p 0.8 -- sampling is its default. Overriding only do_sample leaves the three
+# sampling parameters in place, and transformers warns that they "may be ignored". The
+# warning is benign, and it is removed anyway: a log line saying something may be
+# ignored is the exact shape of the silent failures that have already cost this project
+# two debugging sessions, and leaving a harmless one around trains the eye to skip them.
+GREEDY = GenerationConfig(
+    do_sample=False,
+    num_beams=1,
+    temperature=None,
+    top_p=None,
+    top_k=None,
+    max_new_tokens=MAX_NEW_TOKENS,
+    pad_token_id=tokenizer.pad_token_id,
+    eos_token_id=tokenizer.eos_token_id,
+)
+
 
 def load(repo: str, revision: str):
     """Load in bfloat16, sharded over whatever devices are present.
@@ -261,13 +278,7 @@ def answer(model, prompts: list[str]) -> list[str]:
     ]
     batch = tokenizer(conversations, return_tensors="pt", padding=True).to(model.device)
     with torch.no_grad():
-        produced = model.generate(
-            **batch,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=False,
-            num_beams=1,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        produced = model.generate(**batch, generation_config=GREEDY)
     width = batch["input_ids"].shape[1]
     return tokenizer.batch_decode(produced[:, width:], skip_special_tokens=True)
 
