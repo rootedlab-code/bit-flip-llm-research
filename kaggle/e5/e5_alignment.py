@@ -93,6 +93,7 @@ subprocess.run(
 import csv
 import hashlib
 import io
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -141,7 +142,11 @@ ALPACA_FILE = "data/train-00000-of-00001-a09b74b3ef9c3b56.parquet"
 
 PROBES_PER_SET = 100
 MAX_NEW_TOKENS = 256  # 96 truncated answers before their closing markers appeared
-BATCH_SIZE = 8
+# 4B in bfloat16 occupies 8 GB of the 29 available, so the batch can be far larger than
+# the first run's 8. The T4 has no bfloat16 tensor cores and torch falls back to
+# emulation, which makes generation memory-bound rather than compute-bound: a wider
+# batch is close to free and is the only lever that matters here.
+BATCH_SIZE = 32
 SEED = 0
 
 OUTPUT = Path("/kaggle/working")
@@ -284,11 +289,25 @@ def answer(model, prompts: list[str]) -> list[str]:
 
 
 def answer_all(model, probes) -> list[str]:
-    replies: list[str] = []
-    for start in range(0, len(probes), BATCH_SIZE):
-        chunk = probes[start : start + BATCH_SIZE]
-        replies.extend(answer(model, [probe.prompt for probe in chunk]))
-    return replies
+    """Answer every probe, reporting progress so a long run is legible while it runs.
+
+    Sorting by prompt length before batching keeps each batch's padding tight: a batch
+    generates for as long as its longest member, so mixing a short prompt with a long
+    one wastes the difference on every one of the 256 steps.
+    """
+    order = sorted(range(len(probes)), key=lambda index: len(probes[index].prompt))
+    replies: list[str | None] = [None] * len(probes)
+    started = time.time()
+    for start in range(0, len(order), BATCH_SIZE):
+        chunk = order[start : start + BATCH_SIZE]
+        for index, reply in zip(
+            chunk, answer(model, [probes[index].prompt for index in chunk]), strict=True
+        ):
+            replies[index] = reply
+        done = min(start + BATCH_SIZE, len(order))
+        rate = done / (time.time() - started)
+        print(f"    {done:>4}/{len(order)} answered · {rate:.1f} probes/s", flush=True)
+    return [reply for reply in replies if reply is not None]
 
 
 # %% [markdown]
