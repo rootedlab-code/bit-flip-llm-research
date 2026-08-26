@@ -13,3 +13,6 @@ PLAN-*.md
 CLAUDE.md
 .claude/
 .specify/
+
+# The write-up, held until the experimental programme is complete.
+docs/public/
