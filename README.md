@@ -194,8 +194,14 @@ size: a silently misparsed file cannot be mistaken for a result.
 2. **Nothing asserted, everything recomputed** — every published figure traces back to the
    script and the CSV that produced it. Figures from the literature are cited as a
    comparison point, never as the source of one of our results.
-3. **Determinism, or it is not a measurement** — two runs of the same configuration give
-   identical results digit for digit, and there is a test that verifies it.
+3. **Determinism, or it is not a measurement** — two runs of the same configuration in
+   the same session give identical results digit for digit, and every experiment
+   asserts it before measuring anything. Across sessions the guarantee is weaker and
+   has been measured rather than assumed: the same configuration on different hardware
+   moved perplexity by 3.0 × 10⁻⁵ relative, because BLAS kernels and summation order
+   differ. Every comparison is therefore made against a baseline measured in the same
+   session. Top-1 agreement was identical across sessions in all 30 configurations,
+   where 9 of 30 perplexities were not.
 4. **Pre-registration of criteria** — thresholds and classification rules are frozen in a
    file with a hash before the first run that uses them.
 5. **No claim without its control** — null, positive, brick, benign.
@@ -205,8 +211,9 @@ size: a silently misparsed file cannot be mistaken for a result.
 ## Reading order
 
 1. This file, for what exists and what does not.
-2. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md) and
-   [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) — the per-experiment technical
+2. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md),
+   [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) and
+   [`docs/e2-degradation.md`](docs/e2-degradation.md) — the per-experiment technical
    notes: method, result, and declared boundaries, one per experiment.
 3. `results/` — the CSVs behind every figure quoted above.
 
