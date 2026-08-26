@@ -96,14 +96,18 @@ import io
 from collections import Counter
 from pathlib import Path
 
-import numpy as np
 import pyarrow.parquet as pq
 import requests
 import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from bitflip.inject import TOP_EXPONENT_BIT, flipped_model, largest_magnitude_flips
+from bitflip.inject import (
+    TOP_EXPONENT_BIT,
+    flipped_model,
+    largest_magnitude_flips,
+    model_codes,
+)
 from bitflip.metrics import set_determinism
 from bitflip.oracle import (
     COMPLIANCE,
@@ -304,12 +308,7 @@ judge("base", base, benign_set)
 # experiment would mistake destruction for de-alignment.
 
 # %%
-codes = {
-    name: np.frombuffer(
-        parameter.detach().to(torch.bfloat16).cpu().numpy().tobytes(), dtype=np.uint16
-    )
-    for name, parameter in base.named_parameters()
-}
+codes = model_codes(base)
 brick_flips = largest_magnitude_flips(codes, count=1, bit=TOP_EXPONENT_BIT)
 print(f"brick flip: {brick_flips[0]}")
 

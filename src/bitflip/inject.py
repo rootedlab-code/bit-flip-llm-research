@@ -133,6 +133,30 @@ def _integer_view(parameter):
     raise TypeError(f"dtype {flat.dtype} is not supported for injection")
 
 
+def parameter_codes(parameter) -> np.ndarray:
+    """The stored bf16 pattern of every weight in a torch parameter.
+
+    numpy has no bfloat16, so the tensor cannot simply be converted. It does not need
+    to be: a bf16 weight promoted to float32 keeps its pattern in the top 16 bits, so
+    the codes are a shift away from the integer view -- the same identity that lets the
+    injection work on a float32 model in the first place.
+    """
+    import torch
+
+    flat = parameter.detach().reshape(-1).cpu()
+    if flat.dtype == torch.float32:
+        raw = flat.view(torch.int32).numpy().astype(np.uint32)
+        return (raw >> 16).astype(np.uint16)
+    if flat.dtype == torch.bfloat16:
+        return flat.view(torch.int16).numpy().view(np.uint16)
+    raise TypeError(f"dtype {flat.dtype} carries no bf16 pattern")
+
+
+def model_codes(model) -> dict[str, np.ndarray]:
+    """The bf16 patterns of every named parameter, ready for target selection."""
+    return {name: parameter_codes(p) for name, p in model.named_parameters()}
+
+
 @contextmanager
 def flipped_model(model, flips: Sequence[Flip]) -> Iterator[dict[str, int]]:
     """Apply the faults to a torch model and **always** undo them on exit.

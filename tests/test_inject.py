@@ -15,6 +15,8 @@ from bitflip.inject import (
     apply_flips,
     flipped_model,
     largest_magnitude_flips,
+    model_codes,
+    parameter_codes,
     random_flips,
 )
 
@@ -236,3 +238,39 @@ def test_overflow_can_be_allowed_explicitly():
 
     assert flip.index == 1
     assert not np.isfinite(to_float32(apply_flips(codes, [flip])[flip.index], BF16))
+
+
+def test_parameter_codes_match_the_bfloat16_patterns():
+    weights = torch.tensor([0.02, -1.5, 3.25, 0.0], dtype=torch.bfloat16)
+    expected = weights.view(torch.int16).numpy().view(np.uint16)
+
+    assert np.array_equal(parameter_codes(weights), expected)
+
+
+def test_parameter_codes_read_the_same_patterns_out_of_a_float32_copy():
+    """The promoted model must yield the identical codes, or targeting would drift."""
+    weights = torch.tensor([0.02, -1.5, 3.25, 0.0], dtype=torch.bfloat16)
+
+    assert np.array_equal(
+        parameter_codes(weights.to(torch.float32)), parameter_codes(weights)
+    )
+
+
+def test_parameter_codes_flatten_a_matrix():
+    weights = torch.zeros(3, 4, dtype=torch.bfloat16)
+
+    assert parameter_codes(weights).shape == (12,)
+
+
+def test_model_codes_cover_every_named_parameter():
+    model = build_tiny_model()
+
+    codes = model_codes(model)
+
+    assert set(codes) == {"weight"}
+    assert codes["weight"].shape == (12,)
+
+
+def test_a_dtype_without_a_bfloat16_pattern_is_refused():
+    with pytest.raises(TypeError, match="carries no bf16 pattern"):
+        parameter_codes(torch.zeros(4, dtype=torch.float64))

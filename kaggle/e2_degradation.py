@@ -106,12 +106,12 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from bitflip.codec import BF16, from_float32
 from bitflip.damage import INTACT, damage_class
 from bitflip.inject import (
     TOP_EXPONENT_BIT,
     flipped_model,
     largest_magnitude_flips,
+    model_codes,
     random_flips,
 )
 from bitflip.metrics import agreement, evaluate, set_determinism
@@ -272,10 +272,8 @@ for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
 # therefore picks the largest weight the flip amplifies **while staying finite**.
 
 # %%
-codes = {
-    name: from_float32(parameter.detach().float().cpu().numpy().reshape(-1), BF16)
-    for name, parameter in model.named_parameters()
-}
+codes = model_codes(model)
+
 
 for count in TARGETED_COUNTS:
     flips = largest_magnitude_flips(codes, count, bit=TOP_EXPONENT_BIT)
