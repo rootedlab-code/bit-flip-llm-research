@@ -95,9 +95,8 @@ quantised file loses **2.807 times more weights**.
 
 That conclusion has three declared boundaries — the per-weight multiplier is not the same
 in the two formats, quantised damage is spatially correlated, and "weights lost" is not
-yet "damage to the model". They are stated in full in the technical note and in
-[`docs/public/paper.md`](docs/public/paper.md) §4.2.5, and they should be read alongside the headline
-number.
+yet "damage to the model". They are stated in full in the technical note, and they should be read alongside the
+headline number.
 
 ## Reproduction
 
@@ -184,7 +183,6 @@ experiments/
 results/         CSVs and manifest — the only source of every published figure
 tests/           the contract of every module
 docs/            per-experiment technical notes
-docs/public/     the working note, the bibliography, and the Kaggle material
 ```
 
 Both file parsers validate themselves by closing their arithmetic exactly on the file
@@ -207,16 +205,21 @@ size: a silently misparsed file cannot be mistaken for a result.
 ## Reading order
 
 1. This file, for what exists and what does not.
-2. [`docs/public/paper.md`](docs/public/paper.md) — the working note: method, results, limitations,
-   citations.
-3. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md) and
+2. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md) and
    [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) — the per-experiment technical
-   notes, one per experiment, in more detail than the paper's results section.
-4. [`docs/public/MAINTENANCE.md`](docs/public/MAINTENANCE.md) — how the note is kept in step with the
-   code.
+   notes: method, result, and declared boundaries, one per experiment.
+3. `results/` — the CSVs behind every figure quoted above.
+
+### The write-up
+
+A paper covering the whole programme is in preparation and will be published here when
+the remaining experiments (E2, E4, E5) have been run. It is deliberately not released in
+draft: a partial write-up invites its unmeasured sections to be read as findings. Until
+then, this repository is the record — the code, the data, and the two technical notes
+are complete and reproducible as they stand.
 
 ## Licence
 
-To be decided before publication. The model weights used remain subject to their upstream
+MIT, see [`LICENSE`](LICENSE). The model weights used remain subject to their upstream
 licences and are **not** redistributed by this repository: they are downloaded at the
 revisions pinned in `src/bitflip/fetch.py`.
