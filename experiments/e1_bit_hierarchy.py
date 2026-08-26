@@ -37,7 +37,29 @@ def exponent_profile(counts: np.ndarray) -> dict[str, float]:
     }
 
 
-def report(name: str, artifact: Artifact) -> list[dict[str, object]]:
+def summary(
+    name: str, artifact: Artifact, counts: np.ndarray, rows: list[dict[str, object]]
+) -> dict[str, object]:
+    """Le cifre citate a testo, in forma persistibile: nessun numero solo a schermo."""
+    total = int(counts.sum())
+    profile = exponent_profile(counts)
+    fraction = catastrophic_bit_fraction(rows, BF16)
+    return {
+        "modello": name,
+        "artefatto": artifact.key,
+        "revisione": artifact.revision,
+        "pesi": total,
+        "bit_totali": total * BF16.total_bits,
+        "frazione_sotto_uno": profile["frazione_sotto_uno"],
+        "esponente_mediano": profile["esponente_mediano"],
+        "bias_esponente": BF16.bias,
+        "bit_catastrofici": round(fraction * total * BF16.total_bits),
+        "frazione_bit_catastrofici": fraction,
+        "un_bit_ogni": 1 / fraction,
+    }
+
+
+def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict]:
     with immutable([artifact.primary_path]):
         file = SafetensorsFile(artifact.primary_path)
         counts = code_histogram(file, BF16)
@@ -60,7 +82,7 @@ def report(name: str, artifact: Artifact) -> list[dict[str, object]]:
         f"bit catastrofici: {fraction * total * BF16.total_bits:,.0f} su "
         f"{total * BF16.total_bits:,} = {fraction:.4%}, uno ogni {1 / fraction:.2f}"
     )
-    return rows
+    return rows, summary(name, artifact, counts, rows)
 
 
 def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
@@ -72,13 +94,15 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 def main() -> int:
     RESULTS_DIR.mkdir(exist_ok=True)
+    summaries = []
     for name, artifact in (("base", BASE), ("abliterato", ABLITERATED)):
         if not artifact.primary_path.exists():
             print(f"manca {artifact.primary_path}", file=sys.stderr)
             return 1
-        write_csv(
-            RESULTS_DIR / f"e1-bit-hierarchy-{artifact.key}.csv", report(name, artifact)
-        )
+        rows, totals = report(name, artifact)
+        write_csv(RESULTS_DIR / f"e1-bit-hierarchy-{artifact.key}.csv", rows)
+        summaries.append(totals)
+    write_csv(RESULTS_DIR / "e1-summary.csv", summaries)
     return 0
 
 

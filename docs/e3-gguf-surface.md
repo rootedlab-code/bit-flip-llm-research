@@ -70,6 +70,12 @@ concentrazione peggiora il valore atteso invece di migliorarlo.
 
 ## Limiti di questa conclusione — dichiarati
 
+**Le due popolazioni di pesi non coincidono.** Il safetensors dichiara 494.032.768
+parametri, il GGUF 630.167.424: la differenza, 136.134.656 = 151.936 × 896, e
+l'embedding che il GGUF **slega** e materializza una seconda volta come `output.weight`.
+Il confronto qui sopra normalizza per bit e non per peso, quindi regge; ma «pesi persi»
+si riferisce a due insiemi di dimensione diversa, e va tenuto presente.
+
 «Pesi persi» non e «danno al modello», e la differenza conta in tre modi:
 
 1. **Il moltiplicatore non e lo stesso.** Un peso bf16 colpito viene moltiplicato per

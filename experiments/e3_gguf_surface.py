@@ -99,24 +99,40 @@ def main() -> int:
     bf16_total_bits = safetensors.parameter_count * BF16.total_bits
     bf16_catastrophic = catastrophic_bits(bf16_rows, safetensors.parameter_count)
 
+    comparison = [
+        {
+            "formato": "bf16 safetensors",
+            "artefatto": BASE.key,
+            "pesi": safetensors.parameter_count,
+            "bit_totali": bf16_total_bits,
+            "bit_catastrofici": round(bf16_catastrophic),
+            "quota_bit_catastrofici": bf16_catastrophic / bf16_total_bits,
+            "raggio_medio_pesi": 1.0,
+            "pesi_persi_per_flip_casuale": bf16_catastrophic / bf16_total_bits,
+        },
+        {
+            "formato": "gguf q4_k_m",
+            "artefatto": QUANTIZED.key,
+            "pesi": gguf.parameter_count,
+            "bit_totali": gguf_bits,
+            "bit_catastrofici": round(catastrophic_scale_bits),
+            "quota_bit_catastrofici": catastrophic_scale_bits / gguf_bits,
+            "raggio_medio_pesi": damaged_weights / catastrophic_scale_bits,
+            "pesi_persi_per_flip_casuale": damaged_weights / gguf_bits,
+        },
+    ]
+
     print("\n=== confronto: quanto costa un guasto in un bit a caso ===")
     print(
         f"{'formato':<22} {'bit totali':>16} {'catastrofici':>15} "
         f"{'quota':>9} {'raggio':>8} {'pesi persi':>12}"
     )
-    for name, total_bits, catastrophic, radius in (
-        ("bf16 safetensors", bf16_total_bits, bf16_catastrophic, 1.0),
-        (
-            "gguf q4_k_m",
-            gguf_bits,
-            catastrophic_scale_bits,
-            damaged_weights / catastrophic_scale_bits,
-        ),
-    ):
-        expected = catastrophic * radius / total_bits
+    for row in comparison:
         print(
-            f"{name:<22} {total_bits:>16,} {catastrophic:>15,.0f} "
-            f"{catastrophic / total_bits:>8.4%} {radius:>8.1f} {expected:>12.6f}"
+            f"{row['formato']:<22} {row['bit_totali']:>16,} "
+            f"{row['bit_catastrofici']:>15,} {row['quota_bit_catastrofici']:>8.4%} "
+            f"{row['raggio_medio_pesi']:>8.1f} "
+            f"{row['pesi_persi_per_flip_casuale']:>12.6f}"
         )
 
     bf16_expected = bf16_catastrophic / bf16_total_bits
@@ -130,6 +146,10 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=list(all_rows[0]))
         writer.writeheader()
         writer.writerows(all_rows)
+    with (RESULTS_DIR / "e3-comparison.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(comparison[0]))
+        writer.writeheader()
+        writer.writerows(comparison)
     with (RESULTS_DIR / "e3-gguf-bit-census.csv").open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["ruolo", "bit", "quota"])
