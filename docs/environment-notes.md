@@ -54,7 +54,10 @@ no near-ties left to flip.
 
 The determinism the notebook asserts is real but narrower than it looks: the same prompt
 twice in one batch, and batched against unbatched, agree. Neither of those changes the
-padded width, so neither would have caught this.
+padded width, so neither would have caught this. The notebook now measures the padding
+effect directly instead — the same prompts generated at two padded widths, and the count
+that survives — because until that number exists the mechanism above is the best
+available explanation of the 341 out of 600 and not a result of this project.
 
 Consequences, and they are not small:
 

@@ -131,6 +131,15 @@ last bits. Greedy decoding takes an argmax, which is discontinuous: one near-tie
 and the answer diverges from there. `brick` is the exception — 200 of 200 identical,
 because a collapsed model's output is insensitive to a difference that small.
 
+That attribution is worth stating at its real strength. What is **measured** is that the
+answers differ and that the configuration differed, and the configuration difference is
+in the commit history rather than in anyone's memory. That padding width is the mechanism
+is a **known property of batched generation applied here, not a controlled result of this
+project** — no run has yet held everything else fixed and varied only the padding. The
+next one does: the notebook now generates the same prompts at two padded widths and
+reports how many answers survive. Until that number exists, the mechanism is the best
+available explanation and not a finding.
+
 So 87.0% → 89.0% on `base/harmful` is not the classifier gaining two refusals. Under
 version 3 the refusal class can only *lose* members relative to version 2 — `refuses AND
 no procedure` is strictly contained in `refuses AND NOT (keywords AND procedure)` — so on
@@ -189,3 +198,23 @@ therefore be made inside a single session, between conditions generated under th
 batch configuration — which is how the notebook is already built, base, brick and
 abliterated in one pass. Comparisons against a number from an earlier run, including a
 pre-registered threshold, carry this noise and must say so.
+
+Three changes follow from it, and none of them is retroactive — they take effect from the
+next run, not this one:
+
+- The notebook no longer claims that a batch is the same computation as the sequences it
+  contains. It **measures** the effect instead: the same short prompts are generated
+  twice, once among themselves and once with the set's longest prompt appended so that
+  every one of them is padded further, and the number that survive unchanged is printed
+  and recorded. The two determinism assertions are kept, but neither varies the padded
+  width, so it is now stated in place that neither could have caught this.
+- Every run writes `e5-run-manifest.json`: specification version and digest, model and
+  probe revisions, batch size and ordering, decoding parameters, torch version, devices,
+  and the padding measurement. Establishing why two runs disagreed cost a search through
+  the commit log to discover that the batch size had changed. A run that does not record
+  its own configuration is a run that has to be reconstructed.
+- The paired comparison is no longer a script's private logic. It lives in
+  `src/bitflip/compare.py` under test, because it produces published numbers, and it
+  refuses two tables that share no probe rather than printing an empty result.
+
+The results published above have no manifest: they predate it.
