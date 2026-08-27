@@ -4,9 +4,16 @@ Subject: `Qwen/Qwen3-4B-Instruct-2507` @`cdbee75f`, against
 `huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated` @`c9bd4645`.
 100 harmful probes (AdvBench @`098262ed`) and 100 benign controls (Alpaca @`dce01c9b`),
 keywords derived by the registered rule. Criteria: `src/bitflip/spec/oracle_spec.yaml`
-version 3, digest `e554995f4a6309bb…`. Two Tesla T4, torch 2.10.0+cu128, 41 minutes.
-Raw data: `results/e5-oracle-validation.csv`, `results/e5-verdicts.csv`; the superseded
-runs under versions 1 and 2 in `results/history/`.
+version 3, digest `e554995f4a6309bb…`. Two Tesla T4, torch 2.10.0+cu128.
+Raw data: `results/e5-oracle-validation.csv`, `results/e5-verdicts.csv`, with the full
+generation configuration in `results/e5-run-manifest.json`; the superseded runs under
+versions 1 and 2 in `results/history/`.
+
+**Replicated.** The notebook was run twice in separate sessions under this configuration
+and produced byte-identical output both times — the verdict table has SHA-256
+`1df6f109…`, which a re-run can be checked against. No copy of the second run is shipped:
+two identical files in a repository are indistinguishable from one file copied, so the
+digest is the evidence and the duplicate would not have been.
 
 No generated text is stored anywhere: the verdict table carries the class, the answer
 length and a truncated SHA-256, which is enough to re-verify a classification and not
@@ -131,14 +138,20 @@ last bits. Greedy decoding takes an argmax, which is discontinuous: one near-tie
 and the answer diverges from there. `brick` is the exception — 200 of 200 identical,
 because a collapsed model's output is insensitive to a difference that small.
 
-That attribution is worth stating at its real strength. What is **measured** is that the
-answers differ and that the configuration differed, and the configuration difference is
-in the commit history rather than in anyone's memory. That padding width is the mechanism
-is a **known property of batched generation applied here, not a controlled result of this
-project** — no run has yet held everything else fixed and varied only the padding. The
-next one does: the notebook now generates the same prompts at two padded widths and
-reports how many answers survive. Until that number exists, the mechanism is the best
-available explanation and not a finding.
+That attribution has since been measured rather than inferred, from two directions:
+
+- **Holding everything fixed reproduces exactly.** Two sessions under this run's
+  configuration produced byte-identical answers to all 600 probes. So the 341 is not
+  ambient session noise; it has a cause, and the cause is something that changed.
+- **Varying the padding width alone moves answers.** The notebook now generates the
+  set's shortest prompts twice, once among themselves and once with the longest prompt
+  appended so all of them are padded further. Going from 17 to 31 tokens of width left
+  **6 of 8 answers unchanged** — two changed with nothing else touched.
+
+Both figures are recorded in `results/e5-run-manifest.json` for the run that produced
+them. What is still not established is reproduction across *different* accelerators: both
+sessions drew two T4s, and since the cause is arithmetic ordering, the expectation should
+be that a different card does not reproduce.
 
 So 87.0% → 89.0% on `base/harmful` is not the classifier gaining two refusals. Under
 version 3 the refusal class can only *lose* members relative to version 2 — `refuses AND
@@ -199,15 +212,12 @@ batch configuration — which is how the notebook is already built, base, brick 
 abliterated in one pass. Comparisons against a number from an earlier run, including a
 pre-registered threshold, carry this noise and must say so.
 
-Three changes follow from it, and none of them is retroactive — they take effect from the
-next run, not this one:
+Three changes follow from it, and all three are in the run reported above:
 
 - The notebook no longer claims that a batch is the same computation as the sequences it
-  contains. It **measures** the effect instead: the same short prompts are generated
-  twice, once among themselves and once with the set's longest prompt appended so that
-  every one of them is padded further, and the number that survive unchanged is printed
-  and recorded. The two determinism assertions are kept, but neither varies the padded
-  width, so it is now stated in place that neither could have caught this.
+  contains. It **measures** the effect instead, and this run measured 6 of 8. The two
+  determinism assertions are kept, but neither varies the padded width, so it is now
+  stated in place that neither could have caught this.
 - Every run writes `e5-run-manifest.json`: specification version and digest, model and
   probe revisions, batch size and ordering, decoding parameters, torch version, devices,
   and the padding measurement. Establishing why two runs disagreed cost a search through
@@ -217,4 +227,8 @@ next run, not this one:
   `src/bitflip/compare.py` under test, because it produces published numbers, and it
   refuses two tables that share no probe rather than printing an empty result.
 
-The results published above have no manifest: they predate it.
+The rule this leaves behind is narrower than the one first written here, and the
+correction is worth stating: it is not that every comparison must live inside one run.
+Comparisons **across** runs are sound when the generation configuration is identical —
+which the 600 of 600 demonstrates — and the manifest exists so that "identical" is a
+claim someone can check rather than assume.

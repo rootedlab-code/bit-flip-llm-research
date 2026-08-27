@@ -45,31 +45,52 @@ configuration and the same pair of T4s, produced **byte-identical answers for on
 600 probes**. The runs differed in one thing: a batch of 8 in arrival order against a
 batch of 32 sorted by prompt length.
 
-That is enough. With left padding, the batch a prompt lands in determines the padded
-width it is generated under, which changes the reduction order inside attention, which
-moves logits in their last bits. Greedy decoding takes an argmax, and an argmax is
-discontinuous — one near-tie flips and the rest of the answer follows it somewhere else.
-The bricked model is the exception, 200 of 200 identical, because a collapsed output has
-no near-ties left to flip.
+Three measurements pin this down, and together they make it a result rather than an
+explanation:
+
+| what was held fixed | what varied | answers identical |
+|---|---|---|
+| everything, across two sessions | nothing | **600 / 600** |
+| model, seed, decoding, hardware | batch size and ordering | **341 / 600** |
+| model, seed, decoding, hardware, prompts | padding width alone, 17 → 31 tokens | **6 / 8** |
+
+The first row is what makes the second interpretable. Greedy generation **does** reproduce
+exactly across sessions — the verdict tables of two separate runs came out with the same
+SHA-256, `1df6f109…` — so the 341 is not ambient session noise with nowhere to be traced.
+The third row varies the suspected cause on its own and moves 2 answers out of 8.
+
+The mechanism: with left padding, the batch a prompt lands in determines the padded width
+it is generated under, which changes the reduction order inside attention, which moves
+logits in their last bits. Greedy decoding takes an argmax, and an argmax is discontinuous
+— one near-tie flips and the rest of the answer follows it somewhere else. The bricked
+model is the exception, 200 of 200 identical across configurations, because a collapsed
+output has no near-ties left to flip.
 
 The determinism the notebook asserts is real but narrower than it looks: the same prompt
 twice in one batch, and batched against unbatched, agree. Neither of those changes the
-padded width, so neither would have caught this. The notebook now measures the padding
-effect directly instead — the same prompts generated at two padded widths, and the count
-that survives — because until that number exists the mechanism above is the best
-available explanation of the 341 out of 600 and not a result of this project.
+padded width, so neither would have caught this. The notebook measures the padding effect
+directly instead, once per run, and records the result in `e5-run-manifest.json`.
+
+**What is not established:** the 600 of 600 holds hardware fixed as well — both sessions
+drew two T4s. Nothing here says a run reproduces on a different accelerator, and given
+that the cause is arithmetic ordering, the expectation should be that it does not.
 
 Consequences, and they are not small:
 
-- **Every comparison must be made inside one run**, between conditions generated under
-  the same batch configuration. The E5 notebook already does this — base, brick and
-  abliterated in a single pass.
-- **A verdict share carried over from an earlier run is not a baseline**, including a
-  pre-registered threshold. Comparing against one mixes the effect under study with
-  regeneration noise, in an unknown proportion and an unknown direction.
+- **A comparison across runs is valid only when the generation configuration is
+  identical**, and that is a claim someone has to be able to check. It is why every run
+  writes `e5-run-manifest.json`: batch size, ordering, decoding parameters, revisions,
+  devices. Two runs whose manifests differ in any of those fields did not answer the same
+  probes with the same text, and their verdict shares are not comparable.
+- **A verdict share carried over from a run with a different configuration is not a
+  baseline**, including a pre-registered threshold. Comparing against one mixes the effect
+  under study with regeneration noise, in an unknown proportion and an unknown direction.
+  That is exactly what happened to the 87.0% floor in `docs/e5-oracle-validation.md`.
+- Comparisons **within** one run are unaffected, which is where E5's own quantities live:
+  base, brick and abliterated are generated in a single pass, under one configuration.
 - The verdict tables store a SHA-256 of every answer precisely so the matched subset can
-  be recovered. `experiments/e5_compare_specs.py` does that, and reports the matched
-  fraction rather than assuming it.
+  be recovered when the configurations do differ. `experiments/e5_compare_specs.py` does
+  that, and reports the matched fraction rather than assuming it.
 
 ## Dependency floors are a portability defect, not caution
 

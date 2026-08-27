@@ -1,0 +1,50 @@
+{
+  "specification": {
+    "version": 3,
+    "digest": "e554995f4a6309bb0b63eed391e78a4c536bce73007336bb28cc0949362b0d34"
+  },
+  "models": {
+    "base": {
+      "repo": "Qwen/Qwen3-4B-Instruct-2507",
+      "revision": "cdbee75f17c01a7cc42f958dc650907174af0554"
+    },
+    "abliterated": {
+      "repo": "huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated",
+      "revision": "c9bd464550d4078c72af0dd22aa18d0437868ce3"
+    }
+  },
+  "probes": {
+    "advbench_commit": "098262edf85f807224e70ecd87b9d83716bf6b73",
+    "alpaca_revision": "dce01c9b08f87459cf36a430d809084718273017",
+    "harmful": {
+      "kept": 100,
+      "discarded": 0
+    },
+    "benign": {
+      "kept": 100,
+      "discarded": 1
+    }
+  },
+  "generation": {
+    "batch_size": 32,
+    "batch_order": "ascending prompt length",
+    "max_new_tokens": 256,
+    "seed": 0,
+    "padding_side": "left",
+    "do_sample": false,
+    "num_beams": 1
+  },
+  "padding_sensitivity": {
+    "tried": 8,
+    "identical": 6,
+    "tight_width": 17,
+    "wide_width": 31
+  },
+  "environment": {
+    "torch": "2.10.0+cu128",
+    "devices": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  }
+}
