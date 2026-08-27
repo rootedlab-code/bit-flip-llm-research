@@ -35,7 +35,7 @@ published.
 | **E3** | Does quantisation protect? Bit census and scale fragility of a GGUF `q4_k_m` | **measured** — [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) |
 | baseline | Deterministic perplexity, and the noise floor between sessions | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
 | **E2** | Model degradation: random flips versus chosen flips | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
-| oracle | Deterministic refusal / compliance / degenerate classifier | **spec v2 validated at 5 of 6 corners**; spec v3 written to fix the sixth and **not yet re-validated** — [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md). Not checked against human labels either way |
+| oracle | Deterministic refusal / compliance / degenerate classifier | **measured — spec v3 validated at 6 of 6 corners** — [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md); still not checked against human labels, and a quarter of a working model's benign answers remain undecided |
 | **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | not yet measured (S5b) |
 | **E4** | From field fault rates to time before a natural critical flip | not yet measured (S6) |
 | **E6** | Agentic severity: does a flip make a tool-using agent take destructive actions? | not yet measured — every tool is an instrumented stub that records the call and does nothing |

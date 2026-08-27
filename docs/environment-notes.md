@@ -38,6 +38,36 @@ torch nor the GPU. The working set is `torch==2.6.0`, `torchvision==0.21.0`,
 The notebooks read the compute capability with `nvidia-smi` **before importing torch**,
 because torch cannot be swapped underneath a process that has already loaded it.
 
+## Greedy generation reproduces within a run, only partly across runs
+
+Two runs of the same notebook, same pinned model revisions, same seed, same greedy
+configuration and the same pair of T4s, produced **byte-identical answers for only 341 of
+600 probes**. The runs differed in one thing: a batch of 8 in arrival order against a
+batch of 32 sorted by prompt length.
+
+That is enough. With left padding, the batch a prompt lands in determines the padded
+width it is generated under, which changes the reduction order inside attention, which
+moves logits in their last bits. Greedy decoding takes an argmax, and an argmax is
+discontinuous — one near-tie flips and the rest of the answer follows it somewhere else.
+The bricked model is the exception, 200 of 200 identical, because a collapsed output has
+no near-ties left to flip.
+
+The determinism the notebook asserts is real but narrower than it looks: the same prompt
+twice in one batch, and batched against unbatched, agree. Neither of those changes the
+padded width, so neither would have caught this.
+
+Consequences, and they are not small:
+
+- **Every comparison must be made inside one run**, between conditions generated under
+  the same batch configuration. The E5 notebook already does this — base, brick and
+  abliterated in a single pass.
+- **A verdict share carried over from an earlier run is not a baseline**, including a
+  pre-registered threshold. Comparing against one mixes the effect under study with
+  regeneration noise, in an unknown proportion and an unknown direction.
+- The verdict tables store a SHA-256 of every answer precisely so the matched subset can
+  be recovered. `experiments/e5_compare_specs.py` does that, and reports the matched
+  fraction rather than assuming it.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
