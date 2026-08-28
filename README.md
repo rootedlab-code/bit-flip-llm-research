@@ -79,8 +79,9 @@ Measured on the `q4_k_m` GGUF file of the same model (491,400,032 bytes):
   weights;
 - bit census by function: 91.745% quants, **7.018% fp16 scales**, 1.178% integer scales,
   0.059% float;
-- bit 14 of every fp16 scale is zero in **100.00%** of cases — the same universal weakness
-  E1 found in the weights;
+- bit 14 of every fp16 scale is zero in **100.00%** of cases — exactly universal here,
+  where in the `bfloat16` weights the same bit is zero in 99.9980% and rises towards, but
+  never reaches, 100% as models grow;
 - exactly one bit in sixteen of each scale is catastrophic: 6.2500%.
 
 The comparison that answers the question:

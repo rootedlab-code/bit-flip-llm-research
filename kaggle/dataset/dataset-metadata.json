@@ -20,6 +20,22 @@
       "description": "E1 - one row per model: catastrophic bit share and the exponent statistics behind it"
     },
     {
+      "path": "e1-bit-hierarchy-qwen3-4b.csv",
+      "description": "E1 at scale - the same per-bit profile on Qwen3-4B-Instruct-2507"
+    },
+    {
+      "path": "e1-bit-hierarchy-qwen25-7b.csv",
+      "description": "E1 at scale - the same per-bit profile on Qwen2.5-7B-Instruct"
+    },
+    {
+      "path": "e1-scale-summary.csv",
+      "description": "E1 at scale - one row per subject across a 15x range, with the coverage checks"
+    },
+    {
+      "path": "e1-scale-manifest.json",
+      "description": "E1 at scale - repositories, revisions, shard counts and per-file digests"
+    },
+    {
       "path": "e2-degradation.csv",
       "description": "E2 - perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults"
     },

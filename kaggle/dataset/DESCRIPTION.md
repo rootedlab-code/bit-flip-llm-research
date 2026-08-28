@@ -26,6 +26,10 @@ worth, in numbers?**
 | `e1-bit-hierarchy-base.csv` | 16 | E1 — one row per bit position of a `bfloat16` weight, `Qwen/Qwen2.5-0.5B-Instruct` |
 | `e1-bit-hierarchy-abliterated.csv` | 16 | E1 — the same profile on the abliterated positive control |
 | `e1-summary.csv` | 2 | E1 — one row per model: catastrophic bit share and the exponent statistics behind it |
+| `e1-bit-hierarchy-qwen3-4b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen3-4B-Instruct-2507` |
+| `e1-bit-hierarchy-qwen25-7b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen2.5-7B-Instruct` |
+| `e1-scale-summary.csv` | 3 | E1 at scale — one row per subject across a 15× range, with the coverage checks |
+| `e1-scale-manifest.json` | — | E1 at scale — repositories, revisions, shard counts and per-file digests |
 | `e2-degradation.csv` | 30 | E2 — perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults |
 | `e3-gguf-bit-census.csv` | 4 | E3 — bits of the `q4_k_m` GGUF file grouped by function |
 | `e3-gguf-scale-fragility.csv` | 32 | E3 — flip outcomes for the `fp16` block scales, one row per (block size, bit position) |
@@ -85,6 +89,27 @@ bits (0–6). Position 0 is the least significant bit.
 | `median_exponent`, `exponent_bias` | the stored exponent field's median, and the format's bias |
 | `catastrophic_bits`, `catastrophic_bit_fraction` | how many bits of the file are catastrophic when flipped, and their share |
 | `one_bit_in` | the same share as "one bit in N", which is the form the figure is usually quoted in |
+
+`e1-scale-summary.csv` carries the same columns for three subjects spanning a 15× range,
+plus the checks that make the comparison admissible: `stored_parameters`,
+`bf16_parameter_share` and `declared_dtype` (a file that is not wholly `bf16` would make
+the figure a mixture rather than a measurement), `tensors`, `shards` and
+`declared_size_gap` (the parser must close its arithmetic on a multi-file model too), and
+`top_exponent_zero_fraction` alongside `top_exponent_catastrophic_fraction`, which are two
+different quantities and were once printed under one label.
+
+**What it answers.** The catastrophic share is a property of the **format**, not of the
+model: 6.2595% at 0.5 B, 6.2588% at 4 B, 6.2839% at 7.6 B — a spread of 0.025 percentage
+points over a 15× range, all of it just above the 6.25% floor that one bit in sixteen
+imposes by geometry.
+
+**And a claim it narrows.** The top exponent bit is *not* zero in 100% of weights, as a
+two-decimal rounding once suggested. It is zero in 99.9980% at 0.5 B, 99.9995% at 4 B and
+99.9998% at 7.6 B: it climbs towards universality with scale without ever reaching it. The
+weights it misses are those with |w| ≥ 2, where flipping that bit **divides** by 2¹²⁸
+instead of multiplying — which is why they matter more than their number suggests. In the
+`fp16` block scales of the quantised file the same bit *is* zero in exactly 100.00% of
+cases; that population, and only that one, is genuinely universal.
 
 ## Data dictionary — `e2-degradation.csv`
 
