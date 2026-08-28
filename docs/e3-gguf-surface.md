@@ -58,14 +58,35 @@ In fp16 the top exponent bit multiplies by 2¹⁶ = 65,536 (against 2¹²⁸ in 
 | gguf q4_k_m | 3,883,618,304 | 17,034,752 | 0.4386% | 40.1 weights | **0.175711** |
 
 Quantization cuts the share of catastrophic bits by **14×** — and multiplies the blast
-radius of each by **40×**, because one scale governs its whole block. The balance:
+radius of each by **40×**, because one scale governs its whole block. What that nets out
+to depends on what is held equal between two files of different size, and there are three
+defensible answers rather than one:
 
-> for the same random fault, the quantized file loses **2.807 times more weights** than
-> the bf16 one.
+| held equal | the question it answers | gguf / bf16 |
+|---|---|---|
+| the flip | a fault landed *in this file*: how many weights does it destroy? | **2.807×** |
+| the physical exposure | same DRAM, same hours, same fault rate per bit | **1.379×** |
+| the model | what share of its own parameters does each format lose? | **1.081×** |
+
+`results/e3-normalisation.csv`, computed by `bitflip.exposure`. The first figure was
+published on its own for a while, and it is the largest of the three: the quantized file
+is 0.4913 times the size of the bf16 one, so at equal exposure it intercepts about half
+the faults — and the per-flip ratio hides exactly that halving. "For the same random
+fault" reads, to anyone from reliability, as *for the same fault rate*, which is the
+second row and not the first.
+
+**Which one E4 must use.** A fault rate from the field is quoted per bit per hour, so the
+figure to cross it with is the one holding physical exposure equal: **1.379×**. Taking the
+headline instead would overstate that bridge by a factor of two, in the alarming
+direction. The constraint lives in the code and not only here —
+`bitflip.exposure.FEEDS_FAULT_RATE` names it, and a test asserts that no other
+normalisation answers to it.
 
 Quantization does not protect: it **concentrates**. It moves the risk from a large
-population of barely dangerous bits to a small population of very dangerous ones, and
-the concentration worsens the expected value rather than improving it.
+population of barely dangerous bits to a small population of very dangerous ones, and the
+concentration worsens the expected value rather than improving it. That conclusion
+survives all three normalisations — every ratio is above 1 — but its **magnitude does
+not**, and 1.08–1.38 at equal exposure is the defensible range.
 
 ## Limits of this conclusion — stated
 
@@ -79,9 +100,12 @@ in mind.
 "Weights lost" is not "damage to the model", and the difference matters in three ways:
 
 1. **The multiplier is not the same.** A hit bf16 weight is multiplied by 2¹²⁸, a
-   quantized one by 2¹⁶: twelve orders of magnitude of difference in severity per
-   weight. The count above treats them as equivalent because both cross the threshold —
-   a debatable choice, and one that is stated.
+   quantized one by 2¹⁶. The gap between the two is 2¹¹² ≈ 5.2 × 10³³ — **thirty-three
+   orders of magnitude**, not the twelve this note claimed until the arithmetic was
+   checked. The count above treats the two as equivalent because both cross the
+   threshold: a debatable choice, and one that is stated. It is now also asserted, in
+   `tests/test_codec.py`, because a declared boundary that is itself wrong is worse than
+   an undeclared one.
 2. **Quantized damage is correlated.** The 32 weights of a block are contiguous in the
    same row; 40 weights scattered across different tensors are another matter. Which of
    the two destructions weighs more on the output is not something this experiment says.

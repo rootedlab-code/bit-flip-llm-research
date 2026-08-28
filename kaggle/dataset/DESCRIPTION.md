@@ -33,7 +33,8 @@ worth, in numbers?**
 | `e2-degradation.csv` | 30 | E2 — perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults |
 | `e3-gguf-bit-census.csv` | 4 | E3 — bits of the `q4_k_m` GGUF file grouped by function |
 | `e3-gguf-scale-fragility.csv` | 32 | E3 — flip outcomes for the `fp16` block scales, one row per (block size, bit position) |
-| `e3-comparison.csv` | 2 | E3 — `bf16` against `q4_k_m`: catastrophic share, blast radius, weights lost per random fault |
+| `e3-comparison.csv` | 2 | E3 — `bf16` against `q4_k_m`: catastrophic share, blast radius, weights lost per random **flip** |
+| `e3-normalisation.csv` | 3 | E3 — the three ratios between the two formats, each with the question it answers |
 | `e5-oracle-validation.csv` | 6 | Oracle validation — verdict shares at six corners: three models against two probe sets |
 | `e5-verdicts.csv` | 600 | Oracle validation — one row per answer: verdict, length and a truncated SHA-256 |
 | `e5-run-manifest.json` | — | the generation configuration that produced the two files above |
@@ -205,12 +206,23 @@ happens to the number. They say nothing about how much the **model** degrades. A
 driven to a huge value inside a rarely used tensor may not change a comma of the output —
 which is exactly why `e2-degradation.csv` exists.
 
-This applies with particular force to the E3 comparison. The headline figure derived from
-those files — that the quantised format loses 2.807 times more weights per random fault
-than the `bfloat16` one — counts *corrupted weights*, not *lost quality*, and it treats a
-2¹²⁸ multiplier and a 2¹⁶ multiplier as equivalent because both cross the catastrophic
-threshold. Anyone using this dataset to estimate behavioural impact is extrapolating beyond
-what the data measures.
+This applies with particular force to the E3 comparison, in two ways.
+
+**The ratio depends on what is held equal, and `e3-normalisation.csv` gives all three.**
+An earlier version of this description said the quantised format loses 2.807 times more
+weights *per random fault*, which was the wrong condition for that number: 2.807× is the
+cost of a flip that landed **inside** the file. The quantised file is 0.4913 times the
+size, so at equal physical exposure — same DRAM, same hours, same fault rate per bit — it
+intercepts about half the faults and the ratio is **1.379×**; normalised on each format's
+own parameters it is **1.081×**. Every one of the three is above 1, so the conclusion that
+quantisation concentrates rather than protects survives all of them; the magnitude does
+not. A field fault rate, quoted per bit per hour, has to be crossed with the 1.379×.
+
+**And none of the three is a measure of damage.** They count *corrupted weights*, not
+*lost quality*, and they treat a 2¹²⁸ multiplier and a 2¹⁶ multiplier as equivalent
+because both cross the catastrophic threshold — while the gap between those two
+multipliers is 2¹¹² ≈ 5.2 × 10³³. Anyone using this dataset to estimate behavioural impact
+is extrapolating beyond what the data measures.
 
 ## How you can help
 

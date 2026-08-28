@@ -100,8 +100,20 @@ The comparison that answers the question:
 | gguf q4_k_m | 3,883,618,304 | 17,034,752 | 0.4386% | 40.1 weights | **0.175711** |
 
 Quantisation cuts the share of catastrophic bits by 14× and multiplies the blast radius of
-each by 40×, because a scale governs its entire block. Net: at equal random fault, the
-quantised file loses **2.807 times more weights**.
+each by 40×, because a scale governs its entire block. What that nets out to depends on
+what is held equal between two files of different size, so all three answers are published
+rather than the largest alone:
+
+| held equal | gguf / bf16 |
+|---|---|
+| the flip — a fault landed *in this file* | **2.807×** |
+| the physical exposure — same DRAM, same hours, same fault rate per bit | **1.379×** |
+| the model — the share of its own parameters each format loses | **1.081×** |
+
+Quantisation does not protect, it concentrates: every ratio is above 1. The **magnitude**
+depends on the question, and 1.08–1.38 at equal exposure is the defensible range. That
+second row is also the one E4 has to cross with a field fault rate, which is quoted per
+bit per hour; the per-flip figure would overstate that bridge twofold.
 
 That conclusion has three declared boundaries — the per-weight multiplier is not the same
 in the two formats, quantised damage is spatially correlated, and "weights lost" is not

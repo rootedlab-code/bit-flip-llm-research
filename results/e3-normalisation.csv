@@ -1,0 +1,4 @@
+key,question,ratio,feeds_fault_rate
+per flip,"a fault landed in this file: how many weights does it destroy, against the same fault in the other?",2.807083898101789,false
+"per file, at equal physical exposure","same DRAM, same hours, same fault rate per bit: how many weights does each format lose?",1.3791648947276636,true
+"per file, normalised on the model's weights",what share of its own parameters does each format lose in that same time?,1.0812248055379268,false

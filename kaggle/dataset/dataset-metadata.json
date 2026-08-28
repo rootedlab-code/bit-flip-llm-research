@@ -52,6 +52,10 @@
       "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius, weights lost per random fault"
     },
     {
+      "path": "e3-normalisation.csv",
+      "description": "E3 - the three ratios between the two formats, each with the question it answers"
+    },
+    {
       "path": "e5-oracle-validation.csv",
       "description": "Oracle validation - verdict shares at the six corners, three models against two probe sets"
     },

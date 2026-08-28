@@ -19,6 +19,7 @@ from collections import defaultdict
 import numpy as np
 
 from bitflip.codec import BF16, FP16
+from bitflip.exposure import Format, normalisations
 from bitflip.fetch import BASE, PROJECT_ROOT, QUANTIZED
 from bitflip.fragility import (
     CODE_SPACE,
@@ -138,12 +139,30 @@ def main() -> int:
             f"{entry['weights_lost_per_random_flip']:>12.6f}"
         )
 
-    bf16_expected = bf16_catastrophic / bf16_total_bits
-    gguf_expected = damaged_weights / gguf_bits
-    print(
-        f"\nratio of weights lost per random flip, gguf / bf16: "
-        f"{gguf_expected / bf16_expected:.3f}"
+    # One ratio was published here for a while, and it was the largest of the three.
+    # Which one is right depends on what is held equal between two files of different
+    # size, so all three are written out with the question each of them answers.
+    ratios = normalisations(
+        Format(
+            name="bf16 safetensors",
+            weights=safetensors.parameter_count,
+            total_bits=bf16_total_bits,
+            weights_lost_per_random_flip=bf16_catastrophic / bf16_total_bits,
+        ),
+        Format(
+            name="gguf q4_k_m",
+            weights=gguf.parameter_count,
+            total_bits=gguf_bits,
+            weights_lost_per_random_flip=damaged_weights / gguf_bits,
+        ),
     )
+    print("\n=== gguf against bf16: three ratios, three questions ===")
+    for norm in ratios:
+        marker = (
+            "  <- the one E4 crosses with a fault rate" if norm.feeds_fault_rate else ""
+        )
+        print(f"{norm.ratio:>8.4f}x  {norm.key}{marker}")
+        print(f"          {norm.question}")
 
     with (RESULTS_DIR / "e3-gguf-scale-fragility.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(all_rows[0]))
@@ -153,6 +172,15 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=list(comparison[0]))
         writer.writeheader()
         writer.writerows(comparison)
+    with (RESULTS_DIR / "e3-normalisation.csv").open("w", newline="") as handle:
+        # A distinct name, like `census_writer` below: mypy binds `writer` to the
+        # DictWriter of the blocks above and a plain csv.writer is not one.
+        norm_writer = csv.writer(handle)
+        norm_writer.writerow(["key", "question", "ratio", "feeds_fault_rate"])
+        for norm in ratios:
+            norm_writer.writerow(
+                [norm.key, norm.question, norm.ratio, str(norm.feeds_fault_rate).lower()]
+            )
     with (RESULTS_DIR / "e3-gguf-bit-census.csv").open("w", newline="") as handle:
         census_writer = csv.writer(handle)
         census_writer.writerow(["role", "bits", "share"])

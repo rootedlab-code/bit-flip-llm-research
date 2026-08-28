@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -121,6 +123,15 @@ def test_the_top_exponent_bit_costs_2_to_the_128_in_bf16_and_2_to_the_16_in_fp16
     assert exponent_multiplier(14, BF16) == 2.0**128
     assert exponent_multiplier(14, FP16) == 2.0**16
     assert exponent_multiplier(14, BF16) / exponent_multiplier(14, FP16) == 2.0**112
+
+
+def test_the_severity_gap_is_thirty_three_orders_of_magnitude_not_twelve():
+    """The technical note quoted twelve for a while. 2**112 is 5.2e33, and a boundary
+    stated wrong by twenty orders is a boundary a reader stops trusting."""
+    gap = exponent_multiplier(14, BF16) / exponent_multiplier(14, FP16)
+
+    assert math.log10(gap) == pytest.approx(33.7, abs=0.05)
+    assert math.log10(gap) > 12
 
 
 @pytest.mark.parametrize("fmt", FORMAT_LIST, ids=lambda f: f.name)
