@@ -124,6 +124,26 @@ the tensors found across the shards must be exactly the ones the index names —
 and 339 of 339 here. The gap is recorded in the manifest rather than allowed to stop a
 run.
 
+**77 weights of the 7.6B are exactly zero, and the criterion mishandles them.** The
+catastrophic test is `non-finite OR |after/before| >= 2**16`, and a weight of exactly zero
+has no ratio — the code substitutes infinity, so those weights count as catastrophic at
+**every** bit position. That is defensible at bit 14, where the flip turns 0 into 2.0. It
+is wrong at bit 0, where the flip turns 0 into 9.18e-41: an infinite ratio, and a change
+of no consequence whatever.
+
+The error is bounded and was measured rather than estimated. Those 77 weights of
+7,615,616,512 contribute 1.011e-08 to the fraction — **0.00000101 percentage points**
+against an excess over the floor of 0.0339, about one part in thirty-three thousand. The
+attribution to bits 11-13 above is unaffected, and the 0.5B and the 4B contain no exactly
+zero weights at all, so their figures cannot carry this at all.
+
+It is left in rather than fixed: the criterion produces every published figure in E1 and
+E3, and changing it for an effect in the eighth significant digit would be a worse trade
+than recording it. **What would change that judgement is a sparse model.** Pruning
+produces exact zeros deliberately and in quantity, and on such a model this false positive
+stops being negligible and starts being the measurement. Anyone extending this to a pruned
+or sparse checkpoint has to fix the criterion first.
+
 ## Boundaries
 
 **Three Qwen models are still one vendor.** The size axis is now covered and the
