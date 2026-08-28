@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from bitflip.codec import FloatFormat, field_at, flip_bit, to_float32
+from bitflip.codec import FloatFormat, decompose, field_at, flip_bit, to_float32
 from bitflip.stats import weighted_quantile
 
 CODE_SPACE = 1 << 16
@@ -79,6 +79,45 @@ def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[dict[str, object]]:
 def catastrophic_bit_fraction(rows: list[dict[str, object]], fmt: FloatFormat) -> float:
     """The fraction of the population's bits whose flip is catastrophic."""
     return sum(float(row["catastrophic_fraction"]) for row in rows) / fmt.total_bits
+
+
+def exponent_profile(counts: np.ndarray, fmt: FloatFormat) -> dict[str, float]:
+    """How small the population's values are, and what that implies for the top bit.
+
+    The top exponent bit is the universal attack surface only because it is
+    predictably zero, and it is predictably zero only because almost every weight
+    has |w| < 1. These two figures are what makes that argument checkable.
+    """
+    _, exponents, _ = decompose(ALL_CODES, fmt)
+    total = float(counts.sum())
+    return {
+        "fraction_below_one": float(counts[exponents < fmt.bias].sum() / total),
+        "median_exponent": weighted_quantile(
+            exponents.astype(np.float64), counts.astype(np.float64), 0.5
+        ),
+    }
+
+
+def population_summary(
+    counts: np.ndarray, rows: list[dict[str, object]], fmt: FloatFormat
+) -> dict[str, object]:
+    """The figures quoted in prose, in persistable form.
+
+    No number this project publishes may live on screen only. Identity fields are
+    the caller's to prepend: which model was measured is not something the
+    arithmetic knows, and the same summary is produced locally and on a hosted run.
+    """
+    total = int(counts.sum())
+    fraction = catastrophic_bit_fraction(rows, fmt)
+    return {
+        "weights": total,
+        "total_bits": total * fmt.total_bits,
+        **exponent_profile(counts, fmt),
+        "exponent_bias": fmt.bias,
+        "catastrophic_bits": round(fraction * total * fmt.total_bits),
+        "catastrophic_bit_fraction": fraction,
+        "one_bit_in": 1 / fraction,
+    }
 
 
 def format_table(rows: list[dict[str, object]]) -> str:

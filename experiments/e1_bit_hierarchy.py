@@ -15,51 +15,27 @@ from pathlib import Path
 
 import numpy as np
 
-from bitflip.codec import BF16, decompose
+from bitflip.codec import BF16
 from bitflip.fetch import ABLITERATED, BASE, PROJECT_ROOT, Artifact
-from bitflip.fragility import ALL_CODES, bit_rows, catastrophic_bit_fraction, format_table
+from bitflip.fragility import (
+    bit_rows,
+    catastrophic_bit_fraction,
+    exponent_profile,
+    format_table,
+    population_summary,
+)
 from bitflip.guard import immutable
-from bitflip.stats import weighted_quantile
 from bitflip.weights import code_histogram, open_weights
 
 RESULTS_DIR = PROJECT_ROOT / "results"
 
 
-def exponent_profile(counts: np.ndarray) -> dict[str, float]:
-    """How small the weights are, and what that implies for the top exponent bit."""
-    _, exponents, _ = decompose(ALL_CODES, BF16)
-    total = float(counts.sum())
-    return {
-        "fraction_below_one": float(counts[exponents < BF16.bias].sum() / total),
-        "median_exponent": weighted_quantile(
-            exponents.astype(np.float64), counts.astype(np.float64), 0.5
-        ),
-    }
-
-
 def summary(
     name: str, artifact: Artifact, counts: np.ndarray, rows: list[dict[str, object]]
 ) -> dict[str, object]:
-    """The figures quoted in prose, in persistable form.
-
-    No number this project publishes may live on screen only.
-    """
-    total = int(counts.sum())
-    profile = exponent_profile(counts)
-    fraction = catastrophic_bit_fraction(rows, BF16)
-    return {
-        "model": name,
-        "artifact": artifact.key,
-        "revision": artifact.revision,
-        "weights": total,
-        "total_bits": total * BF16.total_bits,
-        "fraction_below_one": profile["fraction_below_one"],
-        "median_exponent": profile["median_exponent"],
-        "exponent_bias": BF16.bias,
-        "catastrophic_bits": round(fraction * total * BF16.total_bits),
-        "catastrophic_bit_fraction": fraction,
-        "one_bit_in": 1 / fraction,
-    }
+    """A summary row: which model was measured, then what the arithmetic found."""
+    identity = {"model": name, "artifact": artifact.key, "revision": artifact.revision}
+    return identity | population_summary(counts, rows, BF16)
 
 
 def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict]:
@@ -72,7 +48,7 @@ def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict
         raise RuntimeError(f"histogram {total} != parameters {weights.parameter_count}")
 
     rows = bit_rows(counts, BF16)
-    profile = exponent_profile(counts)
+    profile = exponent_profile(counts, BF16)
 
     print(f"\n=== {name}: {total:,} bf16 weights across {len(weights)} tensors ===")
     print(format_table(rows))
