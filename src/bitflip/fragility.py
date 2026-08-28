@@ -17,6 +17,11 @@ from bitflip.stats import weighted_quantile
 CODE_SPACE = 1 << 16
 CATASTROPHIC_RATIO = 2.0**16
 AMPLIFYING_RATIO = 2.0
+# The mirror images of the two above. A flip that divides a weight by 2**16 removes
+# it as surely as one that multiplies it explodes it, and until now only one
+# direction had a name.
+COLLAPSE_RATIO = 2.0**-16
+ATTENUATING_RATIO = 0.5
 ALL_CODES = np.arange(CODE_SPACE, dtype=np.uint16)
 
 
@@ -96,6 +101,97 @@ def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[BitRow]:
             }
         )
     return rows
+
+
+class SpectrumRow(TypedDict):
+    """One class of flip outcome, and how much of the bit space it accounts for."""
+
+    outcome: str
+    bit_share: float
+    positions: str
+
+
+# Ordered: each pattern is classified by the first condition it satisfies, so the
+# classes partition the space rather than overlapping. `non_finite` precedes the ratio
+# tests because a NaN has no meaningful ratio, and `sign_inversion` precedes the
+# moderate bands because negating a weight leaves |after/before| at exactly 1.
+SPECTRUM_OUTCOMES = (
+    "non_finite",
+    "catastrophic_amplification",
+    "collapse",
+    "sign_inversion",
+    "moderate_amplification",
+    "moderate_attenuation",
+    "negligible",
+)
+
+
+def perturbation_spectrum(counts: np.ndarray, fmt: FloatFormat) -> list[SpectrumRow]:
+    """Every outcome a flip can have, partitioned, not only the catastrophic one.
+
+    `bit_rows` answers "how much of this population's bit space is catastrophic", and
+    everything else is left as a residue with no name. That hides a second channel of
+    damage: an exponent bit flipped *downward* divides the weight instead of
+    multiplying it, which removes the weight rather than exploding it. Both destroy a
+    weight, and only one of them was being counted.
+
+    The classification is by **outcome**, not by bit position. Which bit does what is a
+    consequence of the format's geometry, and deriving it rather than assuming it is
+    the whole point of the experiment -- the `positions` column then shows the
+    correspondence instead of presupposing it.
+
+    Note what this does *not* do: `CATASTROPHIC_RATIO` is untouched, and
+    `non_finite` + `catastrophic_amplification` reproduce
+    `catastrophic_bit_fraction` exactly. No published figure moves.
+    """
+    if counts.shape != (CODE_SPACE,):
+        raise ValueError(f"histogram of {counts.shape}, expected ({CODE_SPACE},)")
+    total = float(counts.sum())
+    if total == 0:
+        raise ValueError("empty population")
+
+    before = values_of(fmt)
+    with np.errstate(invalid="ignore"):
+        usable = (counts > 0) & np.isfinite(before)
+
+    shares = dict.fromkeys(SPECTRUM_OUTCOMES, 0.0)
+    seen: dict[str, list[int]] = {name: [] for name in SPECTRUM_OUTCOMES}
+
+    for position in range(fmt.total_bits):
+        delta, ratio, finite = flip_outcomes(fmt, position)
+        with np.errstate(invalid="ignore", over="ignore"):
+            after = to_float32(flip_bit(ALL_CODES, position, fmt), fmt).astype(np.float64)
+        conditions = (
+            ("non_finite", ~finite),
+            ("catastrophic_amplification", ratio >= CATASTROPHIC_RATIO),
+            ("collapse", ratio <= COLLAPSE_RATIO),
+            ("sign_inversion", after == -before),
+            ("moderate_amplification", ratio >= AMPLIFYING_RATIO),
+            ("moderate_attenuation", ratio <= ATTENUATING_RATIO),
+            ("negligible", np.ones(CODE_SPACE, dtype=bool)),
+        )
+
+        claimed = np.zeros(CODE_SPACE, dtype=bool)
+        for name, condition in conditions:
+            selected = usable & condition & ~claimed
+            claimed |= selected
+            weight = float(counts[selected].sum())
+            if weight:
+                # Accumulated per position and divided once at the end, matching the
+                # association in `catastrophic_bit_fraction` exactly. Dividing inside
+                # the loop rounds differently and puts the two figures one ULP apart,
+                # which is the whole identity this function must not break.
+                shares[name] += weight / total
+                seen[name].append(position)
+
+    return [
+        SpectrumRow(
+            outcome=name,
+            bit_share=shares[name] / fmt.total_bits,
+            positions=" ".join(str(p) for p in seen[name]),
+        )
+        for name in SPECTRUM_OUTCOMES
+    ]
 
 
 def catastrophic_bit_fraction(rows: list[BitRow], fmt: FloatFormat) -> float:

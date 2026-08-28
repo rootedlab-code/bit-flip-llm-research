@@ -1,0 +1,15 @@
+model,outcome,bit_share,positions
+base,non_finite,3.395397246200479e-06,14
+base,catastrophic_amplification,0.06259209017184059,11 12 13 14
+base,collapse,0.18740451443091322,11 12 13 14
+base,sign_inversion,0.0625,15
+base,moderate_amplification,0.13319810258517104,7 8 9 10
+base,moderate_attenuation,0.11680189741482896,7 8 9 10
+base,negligible,0.4375,0 1 2 3 4 5 6
+abliterated,non_finite,3.395397246200479e-06,14
+abliterated,catastrophic_amplification,0.06259206790611103,11 12 13 14
+abliterated,collapse,0.18740453669664278,11 12 13 14
+abliterated,sign_inversion,0.0625,15
+abliterated,moderate_amplification,0.1331994104437623,7 8 9 10
+abliterated,moderate_attenuation,0.1168005895562377,7 8 9 10
+abliterated,negligible,0.4375,0 1 2 3 4 5 6

@@ -20,10 +20,12 @@ from bitflip.codec import BF16
 from bitflip.fetch import ABLITERATED, BASE, PROJECT_ROOT, Artifact
 from bitflip.fragility import (
     BitRow,
+    SpectrumRow,
     bit_rows,
     catastrophic_bit_fraction,
     exponent_profile,
     format_table,
+    perturbation_spectrum,
     population_summary,
 )
 from bitflip.guard import immutable
@@ -40,7 +42,9 @@ def summary(
     return identity | population_summary(counts, rows, BF16)
 
 
-def report(name: str, artifact: Artifact) -> tuple[list[BitRow], dict[str, object]]:
+def report(
+    name: str, artifact: Artifact
+) -> tuple[list[BitRow], dict[str, object], list[SpectrumRow]]:
     weights = open_weights(artifact.local_dir)
     with immutable(weights.paths):
         counts = code_histogram(weights, BF16)
@@ -63,7 +67,15 @@ def report(name: str, artifact: Artifact) -> tuple[list[BitRow], dict[str, objec
         f"catastrophic bits: {fraction * total * BF16.total_bits:,.0f} of "
         f"{total * BF16.total_bits:,} = {fraction:.4%}, one in {1 / fraction:.2f}"
     )
-    return rows, summary(name, artifact, counts, rows)
+    spectrum = perturbation_spectrum(counts, BF16)
+    print("\nwhat a flip does, over the whole bit space:")
+    for entry in spectrum:
+        print(
+            f"  {entry['outcome']:<28} {entry['bit_share']:>9.5%}  "
+            f"bits {entry['positions']}"
+        )
+
+    return rows, summary(name, artifact, counts, rows), spectrum
 
 
 def write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
@@ -76,14 +88,17 @@ def write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
 def main() -> int:
     RESULTS_DIR.mkdir(exist_ok=True)
     summaries = []
+    spectra: list[dict[str, object]] = []
     for name, artifact in (("base", BASE), ("abliterated", ABLITERATED)):
         if not artifact.primary_path.exists():
             print(f"missing {artifact.primary_path}", file=sys.stderr)
             return 1
-        rows, totals = report(name, artifact)
+        rows, totals, spectrum = report(name, artifact)
         write_csv(RESULTS_DIR / f"e1-bit-hierarchy-{artifact.key}.csv", rows)
         summaries.append(totals)
+        spectra.extend({"model": name, **entry} for entry in spectrum)
     write_csv(RESULTS_DIR / "e1-summary.csv", summaries)
+    write_csv(RESULTS_DIR / "e1-perturbation-spectrum.csv", spectra)
     return 0
 
 

@@ -8,9 +8,11 @@ import pytest
 from bitflip.codec import BF16, from_float32
 from bitflip.fragility import (
     CODE_SPACE,
+    SPECTRUM_OUTCOMES,
     bit_rows,
     catastrophic_bit_fraction,
     exponent_profile,
+    perturbation_spectrum,
     population_summary,
 )
 
@@ -72,3 +74,79 @@ def test_a_population_of_small_weights_loses_one_bit_in_sixteen():
     assert rows[TOP_EXPONENT_BIT]["zero_bit_fraction"] == 1.0
     assert rows[TOP_EXPONENT_BIT]["catastrophic_fraction"] == pytest.approx(1.0)
     assert fraction == pytest.approx(1 / BF16.total_bits)
+
+
+# --- the perturbation spectrum ---------------------------------------------------
+#
+# `bit_rows` names one outcome and leaves the rest as a residue. The spectrum names
+# them all, so that the channel which removes a weight is counted rather than implied.
+
+
+def spectrum_of(values: list[float]) -> dict[str, float]:
+    rows = perturbation_spectrum(population(values), BF16)
+    return {row["outcome"]: row["bit_share"] for row in rows}
+
+
+def test_perturbation_spectrum_partitions_the_whole_bit_space():
+    shares = spectrum_of([0.02, 0.5, 0.125, -0.75, -0.001])
+
+    assert set(shares) == set(SPECTRUM_OUTCOMES)
+    assert sum(shares.values()) == 1.0
+
+
+def test_perturbation_spectrum_reproduces_the_published_catastrophic_fraction():
+    """The classification is additive: it renames nothing the criterion already
+    decided, so the two catastrophic classes cover exactly the positions the criterion
+    marks, and agree numerically.
+
+    Agreement is asserted to a tolerance rather than to the bit, deliberately. It is
+    the same quantity summed in a different order -- one accumulator per class here,
+    one combined there -- and float addition is not associative, so the two can sit
+    one ULP apart. Demanding exact equality would be testing an accident of ordering.
+    What must hold is that no pattern moves between the classes, and that is the
+    set identity asserted first.
+    """
+    counts = population([0.02, 0.5, 0.125, -0.75, -0.001, 3.5])
+    rows = perturbation_spectrum(counts, BF16)
+    shares = {row["outcome"]: row["bit_share"] for row in rows}
+    catastrophic_positions = {
+        position
+        for row in rows
+        if row["outcome"] in ("non_finite", "catastrophic_amplification")
+        for position in row["positions"].split()
+    }
+
+    published_rows = bit_rows(counts, BF16)
+    published = catastrophic_bit_fraction(published_rows, BF16)
+
+    assert catastrophic_positions == {
+        str(row["bit"]) for row in published_rows if row["catastrophic_fraction"] > 0
+    }
+    assert shares["non_finite"] + shares["catastrophic_amplification"] == pytest.approx(
+        published, rel=1e-15
+    )
+
+
+def test_perturbation_spectrum_counts_the_collapse_channel_the_criterion_omits():
+    """The result P3 exists for: on weights below one the exponent bits that divide
+    outnumber the one that multiplies, and only the second was ever counted."""
+    shares = spectrum_of([0.02, 0.5, 0.125, -0.75, -0.001])
+
+    catastrophic = shares["non_finite"] + shares["catastrophic_amplification"]
+    assert shares["collapse"] > catastrophic
+
+
+def test_perturbation_spectrum_derives_the_sign_bit_instead_of_assuming_it():
+    """Classification is by outcome, not by position: that bit 15 is the sign bit is
+    a conclusion the table reaches, not an input it is given."""
+    rows = {
+        row["outcome"]: row for row in perturbation_spectrum(population([0.02]), BF16)
+    }
+
+    assert rows["sign_inversion"]["positions"] == "15"
+    assert rows["sign_inversion"]["bit_share"] == pytest.approx(1 / BF16.total_bits)
+
+
+def test_perturbation_spectrum_rejects_an_empty_population():
+    with pytest.raises(ValueError, match="empty population"):
+        perturbation_spectrum(np.zeros(CODE_SPACE, dtype=np.uint64), BF16)
