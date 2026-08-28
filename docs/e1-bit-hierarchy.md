@@ -88,12 +88,18 @@ of the bit space against 6.25955%, a ratio of **2.994**. And it is not a propert
 model — across the three measured in `docs/e1-scale.md` it holds at 18.74045%, 18.74118%
 and 18.71612%, from 0.5B to 7.6B.
 
-**What this does not license.** In the **random** arm it is noise. Removing weights at
-random, at a rate of one in a hundred million, is unstructured pruning at a sparsity the
-literature finds does nothing, and offering it as a mechanism would be offering noise
-with a large percentage attached. The channel is only interesting in the **chosen** arm,
-where it is pruning at the granularity of one bit, of a weight the attacker selected,
-without access to the file.
+**What this does not license.** In the **random** arm it is noise, and the arithmetic
+says so precisely: a fault landing in this channel removes exactly **one weight of the
+494,032,768** in this model, an induced sparsity of 2.0·10⁻⁹. That is unstructured
+pruning orders of magnitude below any regime the pruning literature examines — a
+comparison offered as an argument, not as something measured here.
+
+The 18.74% invites the opposite reading and it is worth blocking explicitly: it is a
+share of the **bit space**, not of the weights a fault removes. Offering the channel as
+a mechanism on the strength of that percentage would be offering noise with a large
+number attached. It is only interesting in the **chosen** arm, where it becomes pruning
+at the granularity of one bit, of a weight the attacker selected, with no access to the
+file.
 
 **Why it is worth naming even so.** A catastrophic flip produces NaN, and NaN is the
 loudest thing a model can do — the output collapses and any operator notices within one
