@@ -143,6 +143,37 @@ cost a moment to read; the missing ones cost a published figure. Where a phrase 
 matched as a whole, join the lines first (`command grep -z`, or a reader that strips the
 wrapping) rather than trusting the line-oriented answer.
 
+## Two sessions on one working tree: a clean `git diff` can mean the opposite of clean
+
+When more than one session edits the same checkout, the obvious guard — look at
+`git status --short`, and if a path is dirty, wait — has a case that reads backwards.
+Reproduced in an isolated repository:
+
+| what happened | `git status --short` | then `git diff --quiet <path>` |
+|---|---|---|
+| the file was only touched | clean | 0 |
+| the file was rewritten with identical bytes | clean | 0 |
+| **another session edited it, then committed between the two commands** | ` M path` | **0** |
+
+The first two are harmless: `git status` refreshes the index cache itself, so a bare
+`touch` never shows as dirty. The third is the one that matters. After the owner commits,
+the working tree matches HEAD again, so `diff --quiet` reports no difference — while the
+file on disk is not the file that was read a moment earlier and **HEAD has moved**.
+
+A guard phrased as "exit 0 means it was only a timestamp, carry on" therefore says carry
+on in exactly the case where the content changed underneath. The failure has the shape
+this file collects: the check passes, and passing is indistinguishable from nothing
+having happened.
+
+The guard that holds: if `git status --short` showed ` M` on a path that is not yours,
+exit 1 from `git diff --quiet` means the edit is still in flight — wait. Exit 0 means it
+landed and was committed while you were looking — **re-read the file and check
+`git log --oneline -1` before doing anything with what you read.** Never treat the second
+case as permission to proceed.
+
+Recording this costs a commit, and a commit is precisely what puts another session into
+the third row.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
