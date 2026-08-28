@@ -84,6 +84,14 @@ Measured on the `q4_k_m` GGUF file of the same model (491,400,032 bytes):
   never reaches, 100% as models grow;
 - exactly one bit in sixteen of each scale is catastrophic: 6.2500%.
 
+That last figure is exact rather than rounded — `0.0625 == 1/16` at both block sizes — and
+it is the floor geometry imposes on any 16-bit format. The `fp16` scales **reach** it,
+because there the top exponent bit is zero in exactly 100.00% of cases and no other
+position contributes anything. The `bfloat16` weights miss it in two opposing directions:
+the weights already carrying a one in bit 14 subtract from the floor (0.000126% at 0.5 B),
+and the near-zero weights, whose bits 11–13 are zero, add to it (0.009674%). The second
+term is the larger, which is why all three models measured sit above 6.25% and none below.
+
 The comparison that answers the question:
 
 | format | total bits | catastrophic | share | blast radius | weights lost per random flip |

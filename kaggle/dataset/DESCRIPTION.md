@@ -103,6 +103,16 @@ model: 6.2595% at 0.5 B, 6.2588% at 4 B, 6.2839% at 7.6 B — a spread of 0.025 
 points over a 15× range, all of it just above the 6.25% floor that one bit in sixteen
 imposes by geometry.
 
+That floor is attainable, and `e3-gguf-scale-fragility.csv` is where a real population
+attains it: the `fp16` block scales measure `0.0625` exactly, `== 1/16`, at both block
+sizes, because their top exponent bit is zero in exactly 100.00% of cases and no other
+position contributes. Against that reference the weights' excess decomposes into two
+opposing terms rather than sitting there as a residue — the weights already carrying a one
+in bit 14 **subtract** (0.000126% at 0.5 B, falling to 0.000013% at 7.6 B as the population
+grows), and the near-zero weights, whose bits 11–13 are zero, **add** (0.009674% at 0.5 B,
+rising to 0.033891% at 7.6 B). Two surfaces moving in opposite directions with scale, the
+second dominating, which is why every model sits above the floor and none below.
+
 **And a claim it narrows.** The top exponent bit is *not* zero in 100% of weights, as a
 two-decimal rounding once suggested. It is zero in 99.9980% at 0.5 B, 99.9995% at 4 B and
 99.9998% at 7.6 B: it climbs towards universality with scale without ever reaching it. The
