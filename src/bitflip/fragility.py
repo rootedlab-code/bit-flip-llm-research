@@ -7,6 +7,8 @@ by the histogram of the observed population -- model weights in E1, block scales
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import numpy as np
 
 from bitflip.codec import FloatFormat, decompose, field_at, flip_bit, to_float32
@@ -16,6 +18,26 @@ CODE_SPACE = 1 << 16
 CATASTROPHIC_RATIO = 2.0**16
 AMPLIFYING_RATIO = 2.0
 ALL_CODES = np.arange(CODE_SPACE, dtype=np.uint16)
+
+
+class BitRow(TypedDict):
+    """One row of the per-bit table, which is also one row of a published CSV.
+
+    Written as a schema rather than a bare mapping because these rows are read back
+    by other experiments and by the reader of `results/e1-bit-hierarchy-*.csv`. A
+    dictionary of `object` cannot say that `catastrophic_fraction` is a number, and
+    every consumer was converting it by hand to find out.
+    """
+
+    bit: int
+    field: str
+    zero_bit_fraction: float
+    median_delta: float
+    p99_delta: float
+    max_finite_delta: float
+    amplified_fraction: float
+    non_finite_fraction: float
+    catastrophic_fraction: float
 
 
 def values_of(fmt: FloatFormat) -> np.ndarray:
@@ -34,7 +56,7 @@ def flip_outcomes(fmt: FloatFormat, position: int) -> tuple[np.ndarray, ...]:
     return delta, ratio, np.isfinite(after)
 
 
-def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[dict[str, object]]:
+def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[BitRow]:
     """One row per bit position, weighted by the observed population."""
     if counts.shape != (CODE_SPACE,):
         raise ValueError(f"histogram of {counts.shape}, expected ({CODE_SPACE},)")
@@ -45,7 +67,7 @@ def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[dict[str, object]]:
     with np.errstate(invalid="ignore"):
         usable = (counts > 0) & np.isfinite(values_of(fmt))
     weights = counts[usable].astype(np.float64)
-    rows = []
+    rows: list[BitRow] = []
 
     for position in range(fmt.total_bits):
         delta, ratio, finite = flip_outcomes(fmt, position)
@@ -76,9 +98,9 @@ def bit_rows(counts: np.ndarray, fmt: FloatFormat) -> list[dict[str, object]]:
     return rows
 
 
-def catastrophic_bit_fraction(rows: list[dict[str, object]], fmt: FloatFormat) -> float:
+def catastrophic_bit_fraction(rows: list[BitRow], fmt: FloatFormat) -> float:
     """The fraction of the population's bits whose flip is catastrophic."""
-    return sum(float(row["catastrophic_fraction"]) for row in rows) / fmt.total_bits
+    return sum(row["catastrophic_fraction"] for row in rows) / fmt.total_bits
 
 
 def exponent_profile(counts: np.ndarray, fmt: FloatFormat) -> dict[str, float]:
@@ -99,7 +121,7 @@ def exponent_profile(counts: np.ndarray, fmt: FloatFormat) -> dict[str, float]:
 
 
 def population_summary(
-    counts: np.ndarray, rows: list[dict[str, object]], fmt: FloatFormat
+    counts: np.ndarray, rows: list[BitRow], fmt: FloatFormat
 ) -> dict[str, object]:
     """The figures quoted in prose, in persistable form.
 
@@ -120,7 +142,7 @@ def population_summary(
     }
 
 
-def format_table(rows: list[dict[str, object]]) -> str:
+def format_table(rows: list[BitRow]) -> str:
     header = (
         f"{'bit':>3} {'field':<9} {'bit=0':>8} {'|d| median':>13} "
         f"{'|d| p99':>11} {'|d| max':>11} {'>=x2':>9} {'catastr.':>10}"

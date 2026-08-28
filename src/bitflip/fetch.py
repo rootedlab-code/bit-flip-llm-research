@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from bitflip.guard import make_readonly, require_free_space, sha256_file
 
@@ -28,6 +29,18 @@ WEIGHT_PATTERNS = (
     "tokenizer_config.json",
     "vocab.json",
 )
+
+
+class ManifestRow(TypedDict):
+    """A row of `results/models-manifest.json`: exactly which bytes were measured."""
+
+    key: str
+    repo_id: str
+    revision: str
+    role: str
+    primary: str
+    bytes: int
+    sha256: str
 
 
 @dataclass(frozen=True)
@@ -104,7 +117,7 @@ def fetch(artifact: Artifact) -> Path:
     return artifact.primary_path
 
 
-def describe(artifact: Artifact) -> dict[str, object]:
+def describe(artifact: Artifact) -> ManifestRow:
     """A manifest row: exactly what was measured."""
     path = artifact.primary_path
     return {

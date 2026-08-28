@@ -22,6 +22,7 @@ from bitflip.codec import BF16, FP16
 from bitflip.fetch import BASE, PROJECT_ROOT, QUANTIZED
 from bitflip.fragility import (
     CODE_SPACE,
+    BitRow,
     bit_rows,
     catastrophic_bit_fraction,
     format_table,
@@ -47,9 +48,9 @@ def scale_histograms(file: GGUFFile) -> dict[int, np.ndarray]:
     return dict(histograms)
 
 
-def catastrophic_bits(rows: list[dict[str, object]], population: int) -> float:
+def catastrophic_bits(rows: list[BitRow], population: int) -> float:
     """How many bits, in the given population, are catastrophic when flipped."""
-    return sum(float(row["catastrophic_fraction"]) for row in rows) * population
+    return sum(row["catastrophic_fraction"] for row in rows) * population
 
 
 def main() -> int:
@@ -83,14 +84,14 @@ def main() -> int:
     for elements, counts in sorted(histograms.items()):
         scales = int(counts.sum())
         rows = bit_rows(counts, FP16)
-        bits = catastrophic_bits(rows, scales)
-        catastrophic_scale_bits += bits
-        damaged_weights += bits * elements
+        scale_bits = catastrophic_bits(rows, scales)
+        catastrophic_scale_bits += scale_bits
+        damaged_weights += scale_bits * elements
 
         print(f"\n--- fp16 scales of {elements}-weight blocks: {scales:,} ---")
         print(format_table(rows))
         print(
-            f"catastrophic bits in this population: {bits:,.0f} "
+            f"catastrophic bits in this population: {scale_bits:,.0f} "
             f"({catastrophic_bit_fraction(rows, FP16):.4%} of their bits), "
             f"blast radius {elements} weights each"
         )
@@ -129,12 +130,12 @@ def main() -> int:
         f"{'format':<22} {'total bits':>16} {'catastrophic':>15} "
         f"{'share':>9} {'radius':>8} {'weights lost':>12}"
     )
-    for row in comparison:
+    for entry in comparison:
         print(
-            f"{row['format']:<22} {row['total_bits']:>16,} "
-            f"{row['catastrophic_bits']:>15,} {row['catastrophic_bit_share']:>8.4%} "
-            f"{row['mean_blast_radius']:>8.1f} "
-            f"{row['weights_lost_per_random_flip']:>12.6f}"
+            f"{entry['format']:<22} {entry['total_bits']:>16,} "
+            f"{entry['catastrophic_bits']:>15,} {entry['catastrophic_bit_share']:>8.4%} "
+            f"{entry['mean_blast_radius']:>8.1f} "
+            f"{entry['weights_lost_per_random_flip']:>12.6f}"
         )
 
     bf16_expected = bf16_catastrophic / bf16_total_bits
@@ -153,10 +154,10 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(comparison)
     with (RESULTS_DIR / "e3-gguf-bit-census.csv").open("w", newline="") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(["role", "bits", "share"])
-        for kind, bits in sorted(census.items(), key=lambda item: -item[1]):
-            writer.writerow([kind, bits, bits / gguf_bits])
+        census_writer = csv.writer(handle)
+        census_writer.writerow(["role", "bits", "share"])
+        for kind, kind_bits in sorted(census.items(), key=lambda item: -item[1]):
+            census_writer.writerow([kind, kind_bits, kind_bits / gguf_bits])
     return 0
 
 

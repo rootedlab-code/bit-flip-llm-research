@@ -19,7 +19,12 @@ download = ["huggingface-hub>=0.26"]
 inference = ["torch>=2.5", "transformers>=4.45"]
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.7"]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=8.3",
+    "ruff>=0.7",
+    "types-pyyaml>=6.0.12.20260815",
+]
 
 # La GPU di questa macchina (RTX 4060, driver CUDA 12.4) non puo eseguire le build
 # cu13x pubblicate su PyPI, e le librerie CUDA che si porterebbero dietro sono ~5 GB
@@ -46,6 +51,21 @@ artifacts = ["src/bitflip/spec/*.yaml"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+
+# Il livello e scelto perche passa oggi, non perche sia il piu alto possibile: un gate
+# rosso al primo giorno viene disattivato e non torna. `--strict` sul solo pacchetto
+# darebbe 27 errori, e `disallow_untyped_defs` ne da 14 (annotazioni di parametri
+# mancanti in codec.py e inject.py) — sono il prossimo passo, non un debito nascosto.
+[tool.mypy]
+files = ["src/bitflip", "experiments", "tests"]
+# 3.12 e la versione che gira su Kaggle, dove le corse pubbliche avvengono. Non e il
+# floor dichiarato (3.11) perche gli stub di numpy usano sintassi 3.12+ e mypy si
+# ferma prima di controllare qualunque cosa.
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+strict_equality = true
+no_implicit_optional = true
 
 [tool.ruff]
 line-length = 90

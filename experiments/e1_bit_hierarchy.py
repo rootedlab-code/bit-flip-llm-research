@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,7 @@ import numpy as np
 from bitflip.codec import BF16
 from bitflip.fetch import ABLITERATED, BASE, PROJECT_ROOT, Artifact
 from bitflip.fragility import (
+    BitRow,
     bit_rows,
     catastrophic_bit_fraction,
     exponent_profile,
@@ -31,14 +33,14 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 
 
 def summary(
-    name: str, artifact: Artifact, counts: np.ndarray, rows: list[dict[str, object]]
+    name: str, artifact: Artifact, counts: np.ndarray, rows: list[BitRow]
 ) -> dict[str, object]:
     """A summary row: which model was measured, then what the arithmetic found."""
     identity = {"model": name, "artifact": artifact.key, "revision": artifact.revision}
     return identity | population_summary(counts, rows, BF16)
 
 
-def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict]:
+def report(name: str, artifact: Artifact) -> tuple[list[BitRow], dict[str, object]]:
     weights = open_weights(artifact.local_dir)
     with immutable(weights.paths):
         counts = code_histogram(weights, BF16)
@@ -64,7 +66,7 @@ def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict
     return rows, summary(name, artifact, counts, rows)
 
 
-def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+def write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
     with path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
