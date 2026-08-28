@@ -2,9 +2,11 @@
 # # E1 at scale — is the fragility a property of the format, or of the model?
 #
 # E1 measured, on `Qwen2.5-0.5B-Instruct`, that **6.2595% of a model file's bits are
-# catastrophic** — one in every 15.98 — and that bit 14, the top exponent bit, is zero
-# in 100.00% of the weights and lethal in 99.998% of them. That is the figure a fault
-# rate gets crossed with, so it is the figure the whole quantitative argument leans on.
+# catastrophic** — one in every 15.98 — and that bit 14, the top exponent bit, is zero in
+# **99.9980%** of the weights and catastrophic to flip in as many. That is the figure a
+# fault rate gets crossed with, so it is the figure the whole quantitative argument leans
+# on. The 9,921 weights of 494 million that already carry a one there are the exception,
+# and flipping theirs divides rather than multiplies.
 #
 # It was measured on half a billion parameters. **Nothing in it has been shown to hold
 # for a model anybody deploys**, and there are two different reasons it might not: the
