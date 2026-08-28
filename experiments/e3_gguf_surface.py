@@ -4,7 +4,7 @@ Does quantization protect? The question is not settled by counting bits but by
 separating them by **function**: quants are integers, and a flip moves them by a
 bounded step; scales are fp16, and a flip in their top exponent bit multiplies *all*
 the weights of the block they govern by 65,536. Here the two populations are counted
-and, with the same exact method as E1, the cost of a random fault is measured in both
+and, with the same exact method as E1, the cost of a random flip is measured in both
 formats.
 
 Usage:  uv run python experiments/e3_gguf_surface.py

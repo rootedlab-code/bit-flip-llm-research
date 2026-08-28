@@ -92,6 +92,32 @@ Consequences, and they are not small:
   be recovered when the configurations do differ. `experiments/e5_compare_specs.py` does
   that, and reports the matched fraction rather than assuming it.
 
+## `grep` here respects `.gitignore`, so "no occurrences" can mean "did not look"
+
+The `grep` on the shell used to develop this project is not `/usr/bin/grep`: it is a
+wrapper around `ugrep --ignore-files`, which reads `.gitignore` and skips what it
+excludes. Run from the repository root, a search therefore never enters `docs/public/`
+or the `PLAN-*.md` files.
+
+```
+grep         -rn "twelve orders" .   ->  0 occurrences
+command grep -rn "twelve orders" .   ->  4, including docs/public/paper.md:767
+```
+
+Both commands are correct; only one of them answers the question "is this figure still
+anywhere". The failure mode is the one this file exists to collect: **the tool reports
+success by finding nothing, and finding nothing is what a passing check looks like.** It
+is the same shape as the Kaggle CLI accepting any accelerator name and the server
+silently ignoring the ones it does not know.
+
+It bites hardest exactly where it matters most here, because the write-up held back from
+git — the one place a retracted figure can survive unnoticed and then be published — is
+excluded by construction.
+
+Use an explicit path (`grep -rn x docs/`) or `command grep` before writing "verified" or
+"no residues" anywhere. A sweep run from the root and reported as complete is a claim
+about the tracked files only, and should say so.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip

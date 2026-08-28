@@ -49,7 +49,7 @@
     },
     {
       "path": "e3-comparison.csv",
-      "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius, weights lost per random fault"
+      "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius, weights lost per random flip. The three ratios between the formats are in e3-normalisation.csv"
     },
     {
       "path": "e3-normalisation.csv",
