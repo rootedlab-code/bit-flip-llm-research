@@ -16,6 +16,7 @@ from bitflip.weights import (
     ShardedWeights,
     ShardIndex,
     code_histogram,
+    dtype_census,
     open_weights,
 )
 
@@ -323,3 +324,23 @@ def test_shard_index_names_each_shard_once_in_first_seen_order(tmp_path):
 def test_open_weights_rejects_a_directory_holding_no_weights(tmp_path):
     with pytest.raises(SafetensorsError, match="neither"):
         open_weights(tmp_path)
+
+
+def test_dtype_census_accounts_for_every_stored_tensor(synthetic):
+    census = dtype_census(SafetensorsFile(synthetic))
+
+    assert census["BF16"] == {"tensors": 1, "parameters": 4, "bytes": 8}
+    assert census["F32"] == {"tensors": 1, "parameters": 2, "bytes": 8}
+    assert sum(row["parameters"] for row in census.values()) == 6
+
+
+def test_dtype_census_sums_across_shards(split_model, split_codes):
+    census = dtype_census(open_weights(split_model))
+
+    assert census == {
+        "BF16": {
+            "tensors": 2,
+            "parameters": split_codes.size,
+            "bytes": split_codes.nbytes,
+        }
+    }

@@ -93,6 +93,10 @@ class StoredWeights(Protocol):
 
     def __len__(self) -> int: ...
 
+    def entries(self) -> Iterator[TensorEntry]:
+        """Every tensor stored, whatever its dtype."""
+        ...
+
     def iter_codes(
         self, fmt: FloatFormat
     ) -> Iterator[tuple[TensorEntry, np.ndarray]]: ...
@@ -179,6 +183,9 @@ class SafetensorsFile:
     @property
     def parameter_count(self) -> int:
         return sum(entry.count for entry in self.tensors.values())
+
+    def entries(self) -> Iterator[TensorEntry]:
+        return iter(self.tensors.values())
 
     def entries_of_format(self, fmt: FloatFormat) -> list[TensorEntry]:
         return [entry for entry in self.tensors.values() if entry.format is fmt]
@@ -274,6 +281,10 @@ class ShardedWeights:
     def parameter_count(self) -> int:
         return sum(file.parameter_count for file in self.files)
 
+    def entries(self) -> Iterator[TensorEntry]:
+        for file in self.files:
+            yield from file.entries()
+
     def entries_of_format(self, fmt: FloatFormat) -> list[TensorEntry]:
         return [entry for file in self.files for entry in file.entries_of_format(fmt)]
 
@@ -298,6 +309,22 @@ def open_weights(directory: Path | str) -> StoredWeights:
     raise SafetensorsError(
         f"{directory}: neither {SHARD_INDEX_NAME} nor {SINGLE_FILE_NAME}"
     )
+
+
+def dtype_census(source: StoredWeights) -> dict[str, dict[str, int]]:
+    """Tensors, parameters and bytes accounted for by each stored dtype.
+
+    The histogram covers one format. A fraction of "the model's bits" is only an
+    honest figure next to the share of the model that format actually holds, and a
+    model that mixes dtypes would otherwise shrink the denominator in silence.
+    """
+    census: dict[str, dict[str, int]] = {}
+    for entry in source.entries():
+        row = census.setdefault(entry.dtype, {"tensors": 0, "parameters": 0, "bytes": 0})
+        row["tensors"] += 1
+        row["parameters"] += entry.count
+        row["bytes"] += entry.nbytes
+    return census
 
 
 HISTOGRAM_CHUNK = 1 << 24

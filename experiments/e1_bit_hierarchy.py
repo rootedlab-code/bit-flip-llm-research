@@ -20,7 +20,7 @@ from bitflip.fetch import ABLITERATED, BASE, PROJECT_ROOT, Artifact
 from bitflip.fragility import ALL_CODES, bit_rows, catastrophic_bit_fraction, format_table
 from bitflip.guard import immutable
 from bitflip.stats import weighted_quantile
-from bitflip.weights import SafetensorsFile, code_histogram
+from bitflip.weights import code_histogram, open_weights
 
 RESULTS_DIR = PROJECT_ROOT / "results"
 
@@ -63,18 +63,18 @@ def summary(
 
 
 def report(name: str, artifact: Artifact) -> tuple[list[dict[str, object]], dict]:
-    with immutable([artifact.primary_path]):
-        file = SafetensorsFile(artifact.primary_path)
-        counts = code_histogram(file, BF16)
+    weights = open_weights(artifact.local_dir)
+    with immutable(weights.paths):
+        counts = code_histogram(weights, BF16)
 
     total = int(counts.sum())
-    if total != file.parameter_count:
-        raise RuntimeError(f"histogram {total} != parameters {file.parameter_count}")
+    if total != weights.parameter_count:
+        raise RuntimeError(f"histogram {total} != parameters {weights.parameter_count}")
 
     rows = bit_rows(counts, BF16)
     profile = exponent_profile(counts)
 
-    print(f"\n=== {name}: {total:,} bf16 weights across {len(file)} tensors ===")
+    print(f"\n=== {name}: {total:,} bf16 weights across {len(weights)} tensors ===")
     print(format_table(rows))
     print(
         f"weights with |w| < 1: {profile['fraction_below_one']:.4%} · "
