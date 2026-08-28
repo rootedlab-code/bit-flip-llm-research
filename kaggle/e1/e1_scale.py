@@ -134,6 +134,17 @@ print(
 #   The 0.5B is uniformly BF16, so on it the qualification never had to be made. Carrying
 #   that assumption to a model nobody has looked at is exactly how a denominator shrinks
 #   in silence, and the fraction inflates without anything failing.
+#
+# Everything here counts **stored** parameters, which is the right denominator and not
+# always the advertised one: `Qwen3-4B-Instruct-2507` ties its output projection to its
+# embedding, so that tensor exists once on disk. A fault strikes what is in memory, and
+# what is in memory is what was stored.
+#
+# One thing is deliberately *not* asserted. The shard index carries a `total_size`, and
+# it does not close on real artifacts — the 4B declares 655,360 bytes more than its three
+# shards hold. That field is the saving library's bookkeeping, not the format's
+# arithmetic, and the format's own arithmetic is already checked exactly, shard by shard.
+# The gap is recorded in the manifest instead of stopping the run.
 
 
 # %%
@@ -169,6 +180,7 @@ def measure(name: str, repo: str, revision: str) -> tuple[list[dict], dict]:
                 "declared_dtype": declared,
                 "tensors": len(weights),
                 "shards": len(weights.paths),
+                "declared_size_gap": getattr(weights, "declared_size_gap", None),
             }
         )
         totals_digests = {Path(path).name: digest for path, digest in digests.items()}
@@ -276,6 +288,7 @@ manifest = {
             "repo": row["repo"],
             "revision": row["revision"],
             "shards": row["shards"],
+            "declared_size_gap": row["declared_size_gap"],
             "digests": row["digests"],
         }
         for row in summaries

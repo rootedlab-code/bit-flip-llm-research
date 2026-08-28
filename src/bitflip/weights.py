@@ -263,12 +263,20 @@ class ShardedWeights:
                 f"shards do not match the index: {len(missing)} missing "
                 f"{missing[:3]}, {len(extra)} unexpected {extra[:3]}"
             )
-        stored = sum(file.data_bytes for file in self.files)
-        if stored != self.index.total_size:
-            raise SafetensorsError(
-                f"shards hold {stored} bytes of tensors, the index declares "
-                f"{self.index.total_size}"
-            )
+
+    @property
+    def declared_size_gap(self) -> int:
+        """Bytes the index claims, less the bytes the shards actually hold.
+
+        Reported rather than asserted, and the difference matters. The format's own
+        arithmetic is checked exactly, per shard, in `SafetensorsFile`. `total_size`
+        is not part of it: it is a convenience field written by whichever library
+        saved the model, and it does not close on real artifacts --
+        `Qwen3-4B-Instruct-2507` declares 655,360 bytes more than its three shards
+        contain. Asserting on it would reject correct models, and it adds nothing to
+        completeness, which the tensor names above establish exactly.
+        """
+        return self.index.total_size - sum(file.data_bytes for file in self.files)
 
     def __len__(self) -> int:
         return sum(len(file) for file in self.files)

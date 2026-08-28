@@ -280,9 +280,11 @@ def test_sharded_weights_reject_an_index_promising_an_absent_tensor(
         open_weights(directory)
 
 
-def test_sharded_weights_reject_a_payload_the_index_does_not_declare(
-    tmp_path, split_codes
-):
+def test_sharded_weights_report_a_declared_size_they_do_not_match(tmp_path, split_codes):
+    """`total_size` is the saving library's bookkeeping, not the format's arithmetic:
+    Qwen3-4B declares 655,360 bytes more than its shards hold. Rejecting on it would
+    reject correct models, so the gap is reported and completeness is established by
+    the tensor names instead."""
     directory = tmp_path / "mismatched"
     directory.mkdir()
     half = split_codes.size // 2
@@ -292,11 +294,17 @@ def test_sharded_weights_reject_a_payload_the_index_does_not_declare(
             {"a.weight": ("BF16", (half,), split_codes[:half])},
             {"b.weight": ("BF16", (half,), split_codes[half:])},
         ],
-        total_size=1,
+        total_size=split_codes.nbytes + 64,
     )
 
-    with pytest.raises(SafetensorsError, match="index declares 1"):
-        open_weights(directory)
+    source = open_weights(directory)
+
+    assert source.declared_size_gap == 64
+    assert source.parameter_count == split_codes.size
+
+
+def test_sharded_weights_report_no_gap_when_the_index_is_exact(split_model):
+    assert open_weights(split_model).declared_size_gap == 0
 
 
 def test_shard_index_rejects_a_document_without_a_weight_map(tmp_path):
