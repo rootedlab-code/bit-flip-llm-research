@@ -1,0 +1,55 @@
+{
+  "title": "bit-flip results",
+  "id": "seb001010/bit-flip-results",
+  "licenses": [
+    {
+      "name": "MIT"
+    }
+  ],
+  "resources": [
+    {
+      "path": "e1-bit-hierarchy-base.csv",
+      "description": "E1 - flip outcome per bit position, Qwen2.5-0.5B-Instruct (bf16)"
+    },
+    {
+      "path": "e1-bit-hierarchy-abliterated.csv",
+      "description": "E1 - same profile on the abliterated positive control"
+    },
+    {
+      "path": "e1-summary.csv",
+      "description": "E1 - one row per model: catastrophic bit share and the exponent statistics behind it"
+    },
+    {
+      "path": "e2-degradation.csv",
+      "description": "E2 - perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults"
+    },
+    {
+      "path": "e3-gguf-bit-census.csv",
+      "description": "E3 - bits of the q4_k_m GGUF file grouped by function"
+    },
+    {
+      "path": "e3-gguf-scale-fragility.csv",
+      "description": "E3 - flip outcomes for the fp16 block scales, by block size and bit position"
+    },
+    {
+      "path": "e3-comparison.csv",
+      "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius, weights lost per random fault"
+    },
+    {
+      "path": "e5-oracle-validation.csv",
+      "description": "Oracle validation - verdict shares at the six corners, three models against two probe sets"
+    },
+    {
+      "path": "e5-verdicts.csv",
+      "description": "Oracle validation - one row per answer: verdict, length and a truncated SHA-256. No generated text"
+    },
+    {
+      "path": "e5-run-manifest.json",
+      "description": "Oracle validation - the generation configuration that produced the two files above"
+    },
+    {
+      "path": "models-manifest.json",
+      "description": "repository, revision, byte count and SHA-256 of every artefact measured"
+    }
+  ]
+}

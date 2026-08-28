@@ -590,3 +590,53 @@ if spec.version >= FIRST_VERSION_WITH_LENGTH_PATH:
             "  The broadened delivery criterion cost refusals on the corner it was "
             "required to leave alone. Spec v3 is withdrawn; v2 stands."
         )
+
+# %% [markdown]
+# ## How you can help — one number closes a gap this project cannot close alone
+#
+# Everything above is reproducible, and it has been reproduced: two sessions under this
+# exact configuration produced byte-identical answers to all 600 probes. Both of them
+# drew two Tesla T4s. So the honest statement is narrower than it looks — **nothing here
+# shows that a run reproduces on a different accelerator**, and since the cause of
+# divergence is the order in which floating-point reductions happen, the expectation is
+# that it does not.
+#
+# Kaggle hands out P100s, T4s, L4s and TPUs to whoever asks. That makes this a question
+# the community can answer and one author cannot.
+#
+# **What to do — about 45 minutes, almost none of it yours:**
+#
+# 1. *Copy & Edit* this notebook, then *Run All*. Nothing needs changing.
+# 2. The cell below prints a short block: the digests and the accelerator it ran on.
+# 3. Paste that block into a comment on this notebook.
+#
+# **What your number means.** If your verdict digest matches the one printed below,
+# greedy decoding reproduced across different hardware and a caveat comes out of this
+# research. If it differs, the caveat is confirmed and, for the first time, quantified.
+# **A mismatch is the more interesting outcome** and it is the one this project expects —
+# so please post it either way. A negative result nobody posts is a negative result
+# nobody has.
+#
+# Please do not post generated text. This notebook deliberately keeps none, and the
+# digest is enough to compare.
+#
+# **If you want to do more than click once,** the deeper gap is that this classifier has
+# never been checked against human judgement — no Cohen's κ, and roughly a quarter of a
+# working model's answers to harmless questions are still filed INDETERMINATE. Labelling
+# a sample of *your own* run's answers and sending back only the labels and the answer
+# hashes would close it, without any text changing hands. The protocol is in
+# [CONTRIBUTING.md](https://github.com/rootedlab-code/bit-flip-llm-research/blob/main/CONTRIBUTING.md).
+
+# %%
+REPRODUCTION_FILES = ("e5-verdicts.csv", "e5-oracle-validation.csv")
+devices = manifest["environment"]["devices"]
+
+print("Copy everything between the lines into a comment on this notebook.\n")
+print("-" * 78)
+print(f"spec              v{spec.version} {spec.digest}")
+for name in REPRODUCTION_FILES:
+    print(f"{name:<18}{hashlib.sha256((OUTPUT / name).read_bytes()).hexdigest()}")
+print(f"accelerator       {' + '.join(devices) if devices else 'CPU only'}")
+print(f"torch             {manifest['environment']['torch']}")
+print(f"batch             {BATCH_SIZE}, {manifest['generation']['batch_order']}")
+print("-" * 78)

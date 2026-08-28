@@ -133,6 +133,40 @@ RTX 4060 Laptop (8 GB VRAM), 30 GB RAM, no ECC exposed, no `sudo`. The download 
 5 GB: that is the constraint that chose 0.5 B models over 7 B ones, not laziness. Neither
 measured experiment uses the GPU.
 
+## Run it on Kaggle
+
+The experiments that need a model in memory run on Kaggle, where the accelerator is free
+and the notebook installs this package straight from this repository — so a notebook run
+and a local run execute the same code, at whichever commit is current.
+
+| Notebook | What it does | Runtime |
+|---|---|---|
+| [oracle validation](https://www.kaggle.com/code/seb001010/bit-flip-e5-oracle-validation) | validates the refusal / compliance / degenerate classifier at six corners, three models against two probe sets | ~41 min, 2×T4 |
+| [E2 degradation](https://www.kaggle.com/code/seb001010/bit-flip-e2-degradation) | perplexity and top-1 agreement under random and chosen faults, and the leverage figure between them | GPU |
+
+Every CSV behind the figures quoted above is also published as a dataset:
+[**bit-flip results**](https://www.kaggle.com/datasets/seb001010/bit-flip-results). It
+carries no model weights and no generated text.
+
+## How you can help
+
+Two gaps here need hardware diversity or human judgement rather than more code, which
+makes them things a reader can close and an author cannot.
+
+1. **Run the oracle notebook on your accelerator and post the digest it prints.** Both
+   sessions behind the published figures drew two T4s, so *reproduction on different
+   hardware is not established* — and since the cause of divergence is the order of
+   floating-point reductions, the expectation is that it fails. A mismatch is the more
+   interesting result and it is the one this project expects, so it is worth posting
+   either way.
+2. **Label a sample of answers by hand.** The classifier has never been compared with
+   human judgement — no Cohen's κ — and 28% of an aligned model's answers to harmless
+   questions are still filed as undecided. The benign corner involves no harmful content
+   at all, and sixty labels are enough to be useful.
+
+The protocol for both, including what must never be sent back, is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Safeguards
 
 The realistic risk of a bit-flip project is not the bit-flip: it is the full disk and the
@@ -188,6 +222,8 @@ src/bitflip/
 experiments/
   e1_bit_hierarchy.py
   e3_gguf_surface.py
+kaggle/          notebook sources in percent format, the metadata that publishes
+                 them, and the description of the results dataset
 results/         CSVs and manifest — the only source of every published figure
 tests/           the contract of every module
 docs/            per-experiment technical notes

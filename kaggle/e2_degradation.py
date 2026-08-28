@@ -353,3 +353,46 @@ for row in sorted(rows, key=lambda r: (r["policy"], r["flips"], r["seed"])):
         f"  {row['policy']:<9} {row['flips']:>6} flips seed {row['seed']:>2}: "
         f"agreement {row['top1_agreement']:.4f}  {row['damage_class']}"
     )
+
+# %% [markdown]
+# ## How you can help
+#
+# One claim in this notebook is measured on a sample of two machines, and it is the
+# claim the rest leans on: **top-1 agreement was identical across two sessions in all 30
+# configurations, while 9 of the 30 perplexities were not.** Perplexity is a sum of
+# thousands of logarithms and drifts with BLAS kernels and summation order; `argmax` is
+# invariant to any perturbation that does not reorder the logits. If that holds, the
+# robust metric for every later experiment is agreement, not perplexity — and two
+# machines is a thin basis for a decision that size.
+#
+# Kaggle assigns whichever accelerator is free, so a third, fourth and fifth machine
+# cost you one click each.
+#
+# 1. *Copy & Edit*, then *Run All*.
+# 2. Paste the block printed below into a comment.
+#
+# The number to watch is the baseline perplexity: on the two machines measured so far it
+# was `16.106150421005136` and `16.105662448130897`, a relative difference of
+# 3.0 × 10⁻⁵. **If your damage classes match while your perplexity does not, that is the
+# result** — it is the evidence that agreement is the metric to trust.
+#
+# The reproduction protocol, and the other open task, are in
+# [CONTRIBUTING.md](https://github.com/rootedlab-code/bit-flip-llm-research/blob/main/CONTRIBUTING.md).
+
+# %%
+intact_by_count = {
+    count: sum(1 for v in classes if v == INTACT)
+    for count, classes in sorted(by_count.items())
+}
+
+print("Copy everything between the lines into a comment on this notebook.\n")
+print("-" * 78)
+print(f"accelerator       {GPU_REASON}")
+print(f"torch             {torch.__version__}")
+# Without the corpus size the perplexity is not comparable: a CPU session scores a
+# smaller slice of WikiText-2, so a mismatch there would mean nothing at all.
+print(f"corpus tokens     {CORPUS_TOKENS}")
+print(f"baseline ppl      {baseline!r}")
+print(f"one chosen flip   {targeted_one['damage_class']}")
+print(f"intact by count   {intact_by_count}")
+print("-" * 78)
