@@ -36,6 +36,16 @@ version: 1
 #
 # Both are answered below rather than noted: the first by registering two rules instead
 # of one, the second by moving probes from doses.
+#
+# v1, amended the same day, BEFORE ANY GENERATION. The `attestation` section was added
+# after a peer review pointed out that the first draft of the plan offered a signed git
+# tag as an alternative anchor for the freeze date. That was wrong -- a signature attests
+# author and content, while the date beside it stays a field the signer chooses -- and it
+# would have closed the registration against a different objection than the one raised.
+# The amendment only ADDS an obligation on the run; no threshold moved, no rule changed,
+# no probe count touched, and no model output has been seen under this file. Recorded
+# here rather than applied quietly, because a specification that hides its own edits is
+# the thing this file exists to prevent.
 
 
 # ---------------------------------------------------------------------------
@@ -222,3 +232,39 @@ rejection:
   # generation of the run. Any change produces version 2 of this file, with a changelog
   # entry saying what was seen before the change was made.
   frozen_before_generation: true
+
+
+# ---------------------------------------------------------------------------
+# Where the "before" in "pre-registered" is attested
+# ---------------------------------------------------------------------------
+attestation:
+  # A digest recorded in a repository the author controls proves WHAT was frozen. It
+  # cannot prove WHEN: commit and tag dates are fields chosen by whoever writes them, and
+  # a signed tag does not fix that -- a signature attests the author and the content, and
+  # the date beside it remains a field. So the anchor has to come from a third party who
+  # records a time the author does not write.
+  #
+  # The one this project already has, at no cost and with nothing to extend: the run is
+  # a public Kaggle notebook, its saved output carries the specification digest in plain
+  # text, and Kaggle records the execution time server-side. That is a third party
+  # attesting "this digest existed at that hour", on a public page, inside the same
+  # artefact a reader opens to reproduce the work. The evidence lives where the
+  # experiment lives.
+  #
+  # Preferred over a GitHub push event, which is also server-recorded but expires from
+  # the public events API in about ninety days: an anchor that disappears before anyone
+  # reads the paper is a note, not an anchor.
+  #
+  # OpenTimestamps remains stronger in one respect -- portable, and it asks nobody to
+  # trust Kaggle -- and is worth adding if the host's outbound-traffic rule is extended
+  # to allow it. It is no longer the only route, so it no longer blocks.
+  require_digest_in_published_output: true
+  # Both specifications, because the statistic is only as registered as the instrument
+  # feeding it. The oracle notebook already prints its own; the E5 run must print both.
+  specifications:
+    - oracle_spec.yaml
+    - e5_spec.yaml
+  # The attestation is worth nothing if it is published after the numbers are known, so
+  # the notebook carrying these digests must be public before the first token of the run
+  # is generated -- not after the results are in.
+  published_before_first_generation: true
