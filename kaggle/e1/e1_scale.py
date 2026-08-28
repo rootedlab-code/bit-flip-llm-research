@@ -65,6 +65,7 @@ subprocess.run(
 import csv
 import json
 import shutil
+import sys
 from importlib.metadata import version
 from pathlib import Path
 
@@ -74,6 +75,7 @@ from huggingface_hub import snapshot_download
 from bitflip.codec import BF16
 from bitflip.fragility import bit_rows, format_table, population_summary
 from bitflip.guard import free_gib, immutable, require_free_space
+from bitflip.inject import TOP_EXPONENT_BIT
 from bitflip.weights import code_histogram, dtype_census, open_weights
 
 OUTPUT = Path("/kaggle/working")
@@ -113,6 +115,12 @@ PUBLISHED = {
     "catastrophic_bits": 494_787_536,
     "catastrophic_bit_fraction": 0.06259548556908678,
 }
+
+# Created here, not where they are first written to: the free-space figure below reads
+# the filesystem holding SCRATCH, and `statvfs` on a directory that does not exist yet
+# raises. `/kaggle/temp` is absent on a CPU session, so the fallback is the live path.
+OUTPUT.mkdir(parents=True, exist_ok=True)
+SCRATCH.mkdir(parents=True, exist_ok=True)
 
 print(
     f"scratch {SCRATCH} · {free_gib(SCRATCH):.1f} GiB free · bitflip {version('bitflip')}"
@@ -171,6 +179,7 @@ def measure(name: str, repo: str, revision: str) -> tuple[list[dict], dict]:
 
         declared = json.loads((directory / "config.json").read_text()).get("torch_dtype")
         rows = bit_rows(counts, BF16)
+        top = next(row for row in rows if row["bit"] == TOP_EXPONENT_BIT)
         totals = (
             {"model": name, "repo": repo, "revision": revision}
             | population_summary(counts, rows, BF16)
@@ -181,6 +190,8 @@ def measure(name: str, repo: str, revision: str) -> tuple[list[dict], dict]:
                 "tensors": len(weights),
                 "shards": len(weights.paths),
                 "declared_size_gap": getattr(weights, "declared_size_gap", None),
+                "top_exponent_zero_fraction": top["zero_bit_fraction"],
+                "top_exponent_catastrophic_fraction": top["catastrophic_fraction"],
             }
         )
         totals_digests = {Path(path).name: digest for path, digest in digests.items()}
@@ -215,9 +226,6 @@ def measure(name: str, repo: str, revision: str) -> tuple[list[dict], dict]:
 # One at a time, largest peak on disk about 15 GB, everything deleted before the next.
 
 # %%
-OUTPUT.mkdir(exist_ok=True)
-SCRATCH.mkdir(parents=True, exist_ok=True)
-
 summaries = []
 for name, repo, revision in SUBJECTS:
     rows, totals = measure(name, repo, revision)
@@ -265,10 +273,24 @@ for row in summaries:
 spread = max(r["catastrophic_bit_fraction"] for r in summaries) - min(
     r["catastrophic_bit_fraction"] for r in summaries
 )
-print(f"\nspread across {len(summaries)} models, 0.5B to 7.6B: {spread:.4%} of all bits")
+smallest = min(r["stored_parameters"] for r in summaries)
+largest = max(r["stored_parameters"] for r in summaries)
 print(
-    "top exponent bit is zero in: "
-    + ", ".join(f"{r['model']} {r['fraction_below_one']:.4%}" for r in summaries)
+    f"\nspread across {len(summaries)} models, {smallest / 1e9:.2f}B to "
+    f"{largest / 1e9:.2f}B parameters: {spread:.4%} of all bits"
+)
+# The claim the attack rests on, stated per model rather than assumed to travel: an
+# attacker does not need to know which weight is hit, only that bit 14 is a zero to
+# flip upward. That is only true while it is zero everywhere.
+print(
+    f"\nbit {TOP_EXPONENT_BIT} is zero in: "
+    + ", ".join(f"{r['model']} {r['top_exponent_zero_fraction']:.4%}" for r in summaries)
+)
+print(
+    f"bit {TOP_EXPONENT_BIT} flip is catastrophic in: "
+    + ", ".join(
+        f"{r['model']} {r['top_exponent_catastrophic_fraction']:.4%}" for r in summaries
+    )
 )
 
 # %%
