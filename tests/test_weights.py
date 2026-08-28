@@ -9,7 +9,15 @@ import pytest
 
 from bitflip.codec import BF16, from_float32, to_float32
 from bitflip.fetch import BASE
-from bitflip.weights import SafetensorsError, SafetensorsFile, code_histogram
+from bitflip.weights import (
+    SHARD_INDEX_NAME,
+    SafetensorsError,
+    SafetensorsFile,
+    ShardedWeights,
+    ShardIndex,
+    code_histogram,
+    open_weights,
+)
 
 QWEN_05B_PARAMETERS = 494_032_768
 
@@ -171,3 +179,147 @@ def test_code_histogram_is_chunk_invariant(tmp_path):
     file = SafetensorsFile(path)
 
     assert np.array_equal(code_histogram(file, BF16, chunk=7), code_histogram(file, BF16))
+
+
+# --- sharded models -------------------------------------------------------------
+#
+# Above a few gigabytes safetensors splits a model across files. The histogram that
+# E1 publishes is a whole-population count, so the only failure that would corrupt it
+# silently is a shard that goes missing: the run would simply measure fewer weights.
+
+SHARD_NAMES = ("model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors")
+
+
+def build_shards(directory, groups, total_size=None, promise=()):
+    """Write one safetensors file per group, plus the index that joins them."""
+    weight_map = {}
+    stored = 0
+    for shard_name, tensors in zip(SHARD_NAMES, groups, strict=True):
+        build_file(directory / shard_name, tensors)
+        for name, (_, _, payload) in tensors.items():
+            weight_map[name] = shard_name
+            stored += payload.nbytes
+    for name in promise:
+        weight_map[name] = SHARD_NAMES[0]
+
+    index = {
+        "metadata": {"total_size": stored if total_size is None else total_size},
+        "weight_map": weight_map,
+    }
+    (directory / SHARD_INDEX_NAME).write_text(json.dumps(index))
+    return directory
+
+
+@pytest.fixture
+def split_codes(weights):
+    return from_float32(np.concatenate([weights, weights * 3.5]), BF16)
+
+
+@pytest.fixture
+def split_model(tmp_path, split_codes):
+    directory = tmp_path / "split"
+    directory.mkdir()
+    half = split_codes.size // 2
+    return build_shards(
+        directory,
+        [
+            {"a.weight": ("BF16", (half,), split_codes[:half])},
+            {"b.weight": ("BF16", (half,), split_codes[half:])},
+        ],
+    )
+
+
+def test_open_weights_reads_an_unsplit_model_as_one_file(synthetic):
+    source = open_weights(synthetic.parent)
+
+    assert isinstance(source, SafetensorsFile)
+    assert source.paths == [synthetic]
+
+
+def test_open_weights_joins_the_shards_of_a_split_model(split_model, split_codes):
+    source = open_weights(split_model)
+
+    assert isinstance(source, ShardedWeights)
+    assert len(source) == 2
+    assert source.parameter_count == split_codes.size
+    assert [path.name for path in source.paths] == list(SHARD_NAMES)
+
+
+def test_sharded_histogram_equals_the_histogram_of_the_unsplit_weights(
+    tmp_path, split_model, split_codes
+):
+    whole = build_file(
+        tmp_path / "model.safetensors",
+        {"a.weight": ("BF16", (split_codes.size,), split_codes)},
+    )
+
+    split = code_histogram(open_weights(split_model), BF16)
+    unsplit = code_histogram(SafetensorsFile(whole), BF16)
+
+    assert np.array_equal(split, unsplit)
+    assert int(split.sum()) == split_codes.size
+
+
+def test_sharded_weights_reject_an_index_promising_an_absent_tensor(
+    tmp_path, split_codes
+):
+    directory = tmp_path / "incomplete"
+    directory.mkdir()
+    half = split_codes.size // 2
+    build_shards(
+        directory,
+        [
+            {"a.weight": ("BF16", (half,), split_codes[:half])},
+            {"b.weight": ("BF16", (half,), split_codes[half:])},
+        ],
+        promise=("c.weight",),
+    )
+
+    with pytest.raises(SafetensorsError, match="1 missing"):
+        open_weights(directory)
+
+
+def test_sharded_weights_reject_a_payload_the_index_does_not_declare(
+    tmp_path, split_codes
+):
+    directory = tmp_path / "mismatched"
+    directory.mkdir()
+    half = split_codes.size // 2
+    build_shards(
+        directory,
+        [
+            {"a.weight": ("BF16", (half,), split_codes[:half])},
+            {"b.weight": ("BF16", (half,), split_codes[half:])},
+        ],
+        total_size=1,
+    )
+
+    with pytest.raises(SafetensorsError, match="index declares 1"):
+        open_weights(directory)
+
+
+def test_shard_index_rejects_a_document_without_a_weight_map(tmp_path):
+    path = tmp_path / SHARD_INDEX_NAME
+    path.write_text(json.dumps({"metadata": {"total_size": 8}}))
+
+    with pytest.raises(SafetensorsError, match="index missing"):
+        ShardIndex.load(path)
+
+
+def test_shard_index_names_each_shard_once_in_first_seen_order(tmp_path):
+    path = tmp_path / SHARD_INDEX_NAME
+    path.write_text(
+        json.dumps(
+            {
+                "metadata": {"total_size": 0},
+                "weight_map": {"a": "two.st", "b": "one.st", "c": "two.st"},
+            }
+        )
+    )
+
+    assert [shard.name for shard in ShardIndex.load(path).shards] == ["two.st", "one.st"]
+
+
+def test_open_weights_rejects_a_directory_holding_no_weights(tmp_path):
+    with pytest.raises(SafetensorsError, match="neither"):
+        open_weights(tmp_path)
