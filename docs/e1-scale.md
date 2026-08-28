@@ -32,6 +32,16 @@ imposes: of sixteen bits exactly one is the top exponent bit, and for weights be
 is the only one whose flip is catastrophic. The excess over that floor is +0.0095,
 +0.0088 and +0.0339 points.
 
+That floor is not a construct. A population measured elsewhere in this project lands
+**exactly** on it: the fp16 block scales of the `q4_k_m` file in E3 have a catastrophic
+fraction of 0.0625 at 32-element blocks and at 256-element blocks alike, because their
+top exponent bit is zero in 100.00% of cases — exactly, not to two decimals — and nothing
+below it contributes anything. The bf16 weights measured here miss that floor in both
+directions at once, and the two terms are separable: the weights that already carry a one
+in bit 14 subtract from it, and the near-zero weights whose bits 11-13 are zero add to it.
+The second term is the larger, which is why all three models sit above 6.25% rather than
+below.
+
 All three models are **100% BF16**, so the denominator is the whole model in each case
 and the fraction needs no qualification.
 
