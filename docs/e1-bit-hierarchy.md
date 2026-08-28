@@ -24,7 +24,7 @@ re-verified at the end of the experiment and is unchanged.
 | 7-10 | low exponent | 36-66% | 9.3e-03 … 1.7e-01 | ≤ 5.5e+04 | 0% |
 | 11 | exponent | 0.15% | 1.1e-02 | 1.4e+07 | 0.1508% |
 | 12-13 | exponent | 0.00% | 1.1e-02 | 3.9e+21 | 0.0020% |
-| **14** | **top exponent** | **100.00%** | **3.9e+36** | 3.4e+38 | **99.998%** |
+| **14** | **top exponent** | **99.9980%** | **3.9e+36** | 3.4e+38 | **99.998%** |
 | 15 | sign | 50.02% | 2.3e-02 | 428 | 0% |
 
 ## Why bit 14 is the universal attack surface
@@ -32,16 +32,26 @@ re-verified at the end of the experiment and is unchanged.
 It is not only that its multiplier is the largest (2¹²⁸, proven in
 `tests/test_codec.py`). It is that its **value is predictable**: 99.9926% of weights
 have |w| < 1, the median exponent is 120 against a bias of 127, and bit 14 is zero in
-**100.00%** of the weights of both models.
+**99.9980%** of the weights of both models.
 
 From which follows the fact that makes the attacks in the literature practical:
 
 > to amplify a weight, an attacker does not need to know **which** weight is being
-> hit. It is enough to hit bit 14 of any weight at all, and the flip will be 0→1.
+> hit. It is enough to hit bit 14, and in all but one weight in 49,797 the flip
+> will be 0→1.
+
+**The exception is worth stating rather than rounding away.** 9,921 weights of the
+494,032,768 already carry a 1 in bit 14, and flipping theirs divides by 2¹²⁸ instead of
+multiplying. Earlier revisions of this page reported the zero fraction as 100.00%, which
+is what two decimals render it as, and wrote "any weight at all" underneath — a table
+rounding that had turned into a stronger claim than the count supports. It does not
+change the conclusion, and one in fifty thousand is not a defence anyone can build on,
+but the fraction is 99.9980% and the sentence now says so.
 
 The counterpart is just as sharp: bits 11-13 are 1 almost everywhere, so flipping them
 **divides** rather than multiplies — they are harmless by construction, not by luck.
-Every weight has exactly one universally amplifying bit, and it is always the same one.
+Every weight has one bit that amplifies it above all others, and it is always the same
+one.
 
 ## The figure E4 will need
 
