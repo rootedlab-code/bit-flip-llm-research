@@ -118,6 +118,31 @@ Use an explicit path (`grep -rn x docs/`) or `command grep` before writing "veri
 "no residues" anywhere. A sweep run from the root and reported as complete is a claim
 about the tracked files only, and should say so.
 
+## Searching for a phrase assumes it sits on one line, and prose wraps
+
+The note above fixes a search that was reading `.gitignore`. It does not fix the second
+way the same claim goes wrong, which bit twice in one afternoon *after* the first was
+understood:
+
+```
+command grep -c "harmless by construction" README.md   ->  0
+command grep -c "harmless"                 README.md   ->  3
+```
+
+The phrase is there. It is split across two lines, because the file is wrapped at 90
+columns and the words fell where they fell. Every sweep for a retired phrase in this
+project runs against Markdown that wraps, so **searching for the phrase finds the
+occurrences that happen to be short enough**, and reports the rest as absent.
+
+The two blind spots are independent. A search can use `command grep` and still be wrong
+this way, which is how the second one survived the fix for the first.
+
+Search for the **shortest distinctive word** of the claim, not the claim: `harmless`, not
+`harmless by construction`; `twelve`, not `twelve orders of magnitude`. The extra hits
+cost a moment to read; the missing ones cost a published figure. Where a phrase must be
+matched as a whole, join the lines first (`command grep -z`, or a reader that strips the
+wrapping) rather than trusting the line-oriented answer.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
