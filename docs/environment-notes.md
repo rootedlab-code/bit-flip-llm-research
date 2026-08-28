@@ -171,8 +171,22 @@ landed and was committed while you were looking — **re-read the file and check
 `git log --oneline -1` before doing anything with what you read.** Never treat the second
 case as permission to proceed.
 
-Recording this costs a commit, and a commit is precisely what puts another session into
-the third row.
+A sharper consequence, learned by having it happen while writing this entry. The sessions
+share the `.git` directory, not only the checkout, so **the history is one object**:
+
+- another session's `git pull` moves *your* HEAD, without your having run anything;
+- another session's `git push` publishes *your* local commits, because they are already
+  in the shared history — a commit is public as soon as anyone pushes, not when its
+  author decides to.
+
+The second is the one to hold on to. A commit made locally, intended to be reviewed
+before going out, leaves the machine on the next push by anyone. Where publication is a
+decision — and in this project the public repository is a decision, with a
+[declared boundary](../README.md) around what leaves it — that has to be planned for
+rather than discovered: commit only what is ready to be public, or do not commit yet.
+
+The visible symptom is a push rejected with `cannot lock ref ... is at X but expected Y`,
+where X is a commit that already contains your own work.
 
 ## Dependency floors are a portability defect, not caution
 
