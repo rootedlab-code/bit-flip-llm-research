@@ -1,0 +1,15 @@
+{
+  "id": "seb001010/bit-flip-e1-scale",
+  "title": "bit-flip e1 scale",
+  "code_file": "e1-scale.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
