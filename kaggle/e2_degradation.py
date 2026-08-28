@@ -6,8 +6,9 @@
 #
 # The static half already established, exactly rather than by sampling, that **6.2595%
 # of the bits** of a `bfloat16` model file are catastrophic when flipped, and that bit
-# 14 — the top exponent bit — is zero in **100.00%** of weights, so an attacker never
-# needs to know which weight is being hit.
+# 14 — the top exponent bit — is zero in **99.9980%** of weights: in all but one weight
+# in 49,797 the flip therefore goes 0 → 1, and an attacker does not need to know which
+# weight is being hit.
 #
 # What that does *not* say is how much the **model** degrades. A weight driven to
 # 6.8e+36 inside a rarely used tensor may not change a comma of the output. This
@@ -261,10 +262,12 @@ for count, seed in itertools.product(RANDOM_COUNTS, SEEDS):
 # ## Chosen faults — the top exponent bit, on a weight the flip can actually amplify
 #
 # The naive reading of E1 is a trap, and the first run of this notebook fell into it.
-# "Bit 14 is zero in 100% of weights, so hit the largest weight" is wrong: the largest
-# weights are precisely those with |w| ≥ 2, which is exactly the condition for bit 14 to
-# be **already set**. Flipping it there divides by 2¹²⁸ and does nothing. In this model
-# all 1000 largest weights are in that category.
+# "Bit 14 is zero in 100% of weights, so hit the largest weight" is wrong — and the 100%
+# is itself the trap, being a two-decimal rounding of 99.9980%. The 9,921 weights it
+# rounds away are not noise: they are exactly the ones this paragraph is about. The
+# largest weights are precisely those with |w| ≥ 2, which is exactly the condition for
+# bit 14 to be **already set**. Flipping it there divides by 2¹²⁸ and does nothing. In
+# this model all 1000 largest weights are in that category.
 #
 # A second trap sits behind the first: among the weights the flip does amplify, the
 # largest overflow. A weight in [1, 2) times 2¹²⁸ exceeds the bfloat16 maximum and
