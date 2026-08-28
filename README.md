@@ -280,7 +280,10 @@ substitutes a smaller model is worse than one that does not run.
    file with a hash before the first run that uses them.
 5. **No claim without its control** — null, positive, brick, benign.
 6. **The boundary is around the published artefact, not around the question** — the worst case is measured; the addresses that produce it are not published.
-7. **Operational security** — a single public identity, no local paths, no bylines.
+7. **Operational security** — no local paths, no bylines, and a single alias for the
+   code. The Kaggle account that runs the experiments is named here deliberately: a
+   notebook that cannot say which repository it installs from is not reproducible. That
+   link was accepted as a cost of running in the open, not overlooked.
 
 ## Reading order
 
