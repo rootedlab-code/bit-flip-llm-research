@@ -60,6 +60,14 @@ Bits 11-13 are catastrophic only where they are **zero**, and they are zero only
 weights whose exponent is tiny — the ones sitting very close to nothing. The 7B has more
 of those, and they open a second, small catastrophic surface underneath the first.
 
+Read on its own this table is the same half-picture the fragility hierarchy used to
+give, so the other half belongs here too: in the overwhelming majority of weights those
+three bits are **one**, and flipping them there divides by 2¹⁶, 2³² and 2⁶⁴ instead of
+multiplying. That is 18.74% of the bit space against the catastrophic 6.26%, it is as
+stable across these three models as the catastrophic figure is — 18.74045%, 18.74118%,
+18.71612% — and `docs/e1-bit-hierarchy.md` sets out what it does and does not license.
+The columns above are the small corner of those bits where the flip goes the other way.
+
 Two effects therefore run in opposite directions as models grow, and both are visible in
 the table above:
 
