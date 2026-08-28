@@ -205,12 +205,14 @@ quarter of a working model's answers to harmless questions are still not recogni
 delivery**, which puts a floor under the resolution of any de-alignment figure built on
 this instrument, and that floor has to be stated wherever such a figure appears.
 
-The second boundary is the one this run turned up rather than removed: **generation is
-reproducible within a run and only partly across runs.** Every comparison E5 makes must
-therefore be made inside a single session, between conditions generated under the same
-batch configuration — which is how the notebook is already built, base, brick and
-abliterated in one pass. Comparisons against a number from an earlier run, including a
-pre-registered threshold, carry this noise and must say so.
+The second boundary is the one this run turned up rather than removed: **generation
+reproduces exactly under a fixed configuration, and only partly across a changed one.**
+A comparison is sound between answers generated under the same batch configuration —
+which E5's own quantities already are, base, brick and abliterated in one pass — or
+across runs whose configuration is identical *and checkable*, which is what
+`results/e5-run-manifest.json` exists for. A number carried over from a run whose
+configuration differed, a pre-registered threshold included, carries regeneration noise
+in an unknown direction and must say so.
 
 Three changes follow from it, and all three are in the run reported above:
 
@@ -227,8 +229,9 @@ Three changes follow from it, and all three are in the run reported above:
   `src/bitflip/compare.py` under test, because it produces published numbers, and it
   refuses two tables that share no probe rather than printing an empty result.
 
-The rule this leaves behind is narrower than the one first written here, and the
-correction is worth stating: it is not that every comparison must live inside one run.
-Comparisons **across** runs are sound when the generation configuration is identical —
-which the 600 of 600 demonstrates — and the manifest exists so that "identical" is a
-claim someone can check rather than assume.
+That rule is narrower than the one first written here, and the correction is worth
+recording rather than quietly overwriting. The first version of this section said every
+comparison had to live inside a single run. The replication that followed — 600 answers
+of 600 byte-identical across two separate sessions — showed that was too strong. What
+does the work is not the single session; it is the fixed configuration, and the manifest
+is what makes "fixed" a claim someone can check rather than assume.
