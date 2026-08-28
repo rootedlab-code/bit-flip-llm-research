@@ -40,11 +40,15 @@ gets it wrong on 146 tensors out of 170.
 | integer scales | 45,760,512 | 1.178% |
 | float (norms, biases) | 2,289,664 | 0.059% |
 
-## The scales share the weights' universal weakness
+## The scales carry the same weakness, and carry it exactly
 
 In the scales of 32-weight blocks **and** in those of 256-weight blocks, bit 14 is zero
-in **100.00%** of cases — the same property E1 found in the bf16 weights, with the same
-consequence: whoever hits that bit does not need to know what value they are hitting.
+in **100.00%** of cases — exactly, not rounded. E1 found the same weakness in the bf16
+weights, but not in the same form: there the figure is 99.9980%, and it climbs towards
+universality with model size without ever arriving (99.9995% at 4 B, 99.9998% at 7.6 B).
+These scales are the only population measured in this project where the word is literally
+true. The consequence is shared either way: whoever hits that bit does not need to know
+what value they are hitting.
 
 In fp16 the top exponent bit multiplies by 2¹⁶ = 65,536 (against 2¹²⁸ in bf16, see
 `tests/test_codec.py`). Exactly **one bit in sixteen** of every scale is catastrophic:
