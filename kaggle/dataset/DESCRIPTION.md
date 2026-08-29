@@ -156,7 +156,7 @@ top exponent bit is again position 14, but its multiplier is 2¹⁶ rather than 
 
 | Column | Definition |
 |---|---|
-| `role` | function of the bits: `quanti` (the quantised values themselves), `scala_fp16` (per-block scales in fp16), `scala_intera` (integer sub-block scales inside K-quant super-blocks), `float` (unquantised tensors: norms and biases) |
+| `role` | function of the bits: `quant` (the quantised values themselves), `scale_fp16` (per-block scales in fp16), `int_scale` (integer sub-block scales inside K-quant super-blocks), `float` (unquantised tensors: norms and biases) |
 | `bits`, `share` | count of bits in that role, and its share of the file's data bits |
 | `mean_blast_radius` | weights affected by one catastrophic flip, averaged over the file: 1 in `bf16`, more in a quantised format where a scale governs a block |
 | `weights_lost_per_random_flip` | catastrophic share × blast radius — the quantity the two formats are compared on |
