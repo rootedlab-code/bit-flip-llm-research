@@ -147,7 +147,7 @@ from bitflip.probes import BENIGN, HARMFUL, build_probe_set
 # Version 1 of each kernel is pushed with this set. It makes the page public, prints both
 # digests, and generates nothing — so the server-recorded time attests the specification
 # rather than the results.
-ATTEST_ONLY = True
+ATTEST_ONLY = False
 
 # "chosen" or "random". One kernel per arm: the whole design is 8.2 hours of two T4s,
 # which does not fit one session, and the specification forbids splitting the numerator
