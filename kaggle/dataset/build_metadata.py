@@ -1,187 +1,95 @@
-"""Rebuild dataset-metadata.json with file and column descriptors.
+"""Build `dataset-metadata.json` from `descriptors.yaml` and the published CSVs.
 
-Kaggle's usability score is driven by four things this file can supply: tags, a subtitle,
-a description per file, and a description per column. The fifth, a cover image, cannot.
+Kaggle's usability score is driven by four things this file can supply — a subtitle, a
+tag list, a description per file and a description per column — and by one it cannot: a
+cover image, which is settable only from the web interface.
+
+Three of Kaggle's rules are enforced here because each one costs a failed update to
+discover, and none of them is reported at the point of use:
+
+- the subtitle must be 20 to 80 characters, or the whole update is refused;
+- keywords come from a controlled vocabulary, and one unknown keyword fails the update;
+- **`kaggle datasets version` does not send the licence at all.** It uploads files. Only
+  `kaggle datasets metadata --update` carries title, subtitle, description, licence and
+  keywords, and the difference is invisible: pushing a version with a licence in the file
+  exits 0 and leaves the page saying `unknown`.
+
+Usage:  uv run python kaggle/dataset/build_metadata.py
 """
+
+from __future__ import annotations
 
 import csv
 import json
 import pathlib
 
-RESULTS = pathlib.Path("results")
-TARGET = pathlib.Path("kaggle/dataset/dataset-metadata.json")
+import yaml
 
-# The nine columns shared by every per-bit table. Written once: four E1 files and the
-# GGUF scale file carry exactly these, and a divergence between copies of the same
-# definition is the defect this dataset has already had to correct once.
-PER_BIT = {
-    "bit": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa.",
-    "field": "IEEE-754 field the position belongs to: sign, exponent or mantissa.",
-    "zero_bit_fraction": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit.",
-    "median_delta": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated.",
-    "p99_delta": "99th percentile of the same weighted distribution.",
-    "max_finite_delta": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above.",
-    "amplified_fraction": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section.",
-    "non_finite_fraction": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption.",
-    "catastrophic_fraction": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show.",
-}
+HERE = pathlib.Path(__file__).parent
+RESULTS = HERE.parent.parent / "results"
+DESCRIPTORS = HERE / "descriptors.yaml"
+TARGET = HERE / "dataset-metadata.json"
+DESCRIPTION = HERE / "DESCRIPTION.md"
 
-SUMMARY_SHARED = {
-    "model": "Label of the subject within this dataset.",
-    "revision": "Exact commit of the source repository. An experiment that does not know which bytes it measured is not reproducible.",
-    "weights": "Number of parameters in the population measured.",
-    "total_bits": "16 x weights: the size of the bit space a random fault lands in.",
-    "fraction_below_one": "Share of weights with |w| < 1. This is why the top exponent bit is almost always 0, and therefore why it is predictable.",
-    "median_exponent": "Median of the stored exponent field over the population.",
-    "exponent_bias": "The format's exponent bias: 127 for bfloat16, 15 for fp16.",
-    "catastrophic_bits": "How many bits of the file are catastrophic when flipped.",
-    "catastrophic_bit_fraction": "The same quantity as a share of total_bits.",
-    "one_bit_in": "1 / catastrophic_bit_fraction - the same share in the form the figure is usually quoted in.",
-}
+SUBTITLE_LIMITS = (20, 80)
 
-SCHEMAS = {
-    "e1-bit-hierarchy-base.csv": PER_BIT,
-    "e1-bit-hierarchy-abliterated.csv": PER_BIT,
-    "e1-bit-hierarchy-qwen3-4b.csv": PER_BIT,
-    "e1-bit-hierarchy-qwen25-7b.csv": PER_BIT,
-    "e3-gguf-scale-fragility.csv": {
-        "block_elements": "Number of weights this scale governs: 32 for the legacy quantisations (Q5_0, Q8_0), 256 for the K-quants (Q4_K, Q6_K). It is also the blast radius of one corrupted scale.",
-        **PER_BIT,
-    },
-    "e1-summary.csv": {
-        **SUMMARY_SHARED,
-        "artifact": "Key of the artefact in models-manifest.json, where its byte count and SHA-256 live.",
-    },
-    "e1-scale-summary.csv": {
-        **SUMMARY_SHARED,
-        "repo": "Source repository on the Hugging Face Hub.",
-        "stored_parameters": "Parameters actually found by the parser, against the count the header declares. The two agreeing is the coverage check.",
-        "bf16_parameter_share": "Share of parameters stored as bfloat16. Below 1 the headline figure would be a mixture of formats rather than a measurement of one.",
-        "declared_dtype": "Dtype declared by the model's own metadata.",
-        "tensors": "Number of tensors parsed.",
-        "shards": "Number of safetensors files the model is split across.",
-        "declared_size_gap": "Bytes between the file size and the sum of the tensors, which must close for a multi-file model too. A silently misparsed file cannot then be mistaken for a result.",
-        "top_exponent_zero_fraction": "Share of weights whose bit 14 is 0.",
-        "top_exponent_catastrophic_fraction": "Share for which flipping bit 14 is catastrophic. A different quantity from the column before it, and the two were once printed under one label.",
-    },
-    "e1-perturbation-spectrum.csv": {
-        "model": "Subject: base or its abliterated control.",
-        "outcome": "What the flip does, by outcome and not by bit position: negligible, moderate_attenuation, moderate_amplification, sign_inversion, collapse (divides by >= 2^16, so the weight is gone), catastrophic_amplification, non_finite.",
-        "bit_share": "Share of the file's whole bit space in this class. The seven classes sum to 1 exactly, which is the check that nothing is unaccounted for.",
-        "positions": "Bit positions contributing to this class. A conclusion of the partition, not an input to it.",
-    },
-    "e2-degradation.csv": {
-        "policy": "baseline (no fault), random (addresses drawn uniformly), targeted (addresses chosen by the attack policy).",
-        "flips": "Number of bits flipped in this configuration.",
-        "seed": "RNG seed for random, -1 where the configuration has no randomness.",
-        "perplexity": "On the WikiText-2 test split, so the absolute value is comparable with the literature. Saturates at the vocabulary size: a destroyed model outputs a uniform distribution and every degree of destruction then looks the same.",
-        "ratio_to_baseline": "Perplexity divided by the undamaged model's. NaN for chosen faults, which overflow the arithmetic rather than degrading it.",
-        "top1_agreement": "Share of positions where the damaged model predicts the same token as the undamaged one. Does not saturate, and was identical across two sessions in all 30 configurations where 9 of 30 perplexities were not - the metric to trust.",
-        "damage_class": "Categorical outcome, defined for every configuration including the NaN ones: intact, partial, uniform_collapse, numeric_collapse.",
-    },
-    "e3-comparison.csv": {
-        "format": "bf16 safetensors or gguf q4_k_m - the same model in two storage formats.",
-        "artifact": "Key of the artefact in models-manifest.json.",
-        "weights": "Parameters the format stores. The two differ: GGUF unties the embedding and materialises it a second time as output.weight, 151,936 x 896 = 136,134,656 extra weights.",
-        "total_bits": "Data bits in the file.",
-        "catastrophic_bits": "Bits whose flip crosses the catastrophic threshold.",
-        "catastrophic_bit_share": "The same as a share of total_bits.",
-        "mean_blast_radius": "Weights destroyed by one catastrophic flip, averaged over the file: 1 in bf16, more where a scale governs a block.",
-        "weights_lost_per_random_flip": "catastrophic share x blast radius. This is a PER-FLIP quantity: see e3-normalisation.csv before comparing the two formats with it.",
-    },
-    "e3-gguf-bit-census.csv": {
-        "role": "Function of the bits: quant (the quantised values), scale_fp16 (per-block scales in fp16), int_scale (integer sub-block scales inside K-quant super-blocks), float (unquantised tensors: norms and biases).",
-        "bits": "Count of data bits in that role.",
-        "share": "Its share of the file's data bits. The four sum to 1, which is how the parser proves it read the file correctly.",
-    },
-    "e3-normalisation.csv": {
-        "key": "What is held equal between the two formats: per flip, per file at equal physical exposure, or per file normalised on each format's own parameters.",
-        "question": "The question that choice of denominator answers, in words. Published with the number because the number alone invites the wrong one.",
-        "ratio": "gguf / bf16 under that normalisation. All three are above 1, so the direction survives every choice; the magnitude does not, ranging from 1.081 to 2.807.",
-        "feeds_fault_rate": "True for the single row a field fault rate may be crossed with. Field rates are quoted per bit per hour, so the per-flip figure would overstate that bridge twofold, in the alarming direction.",
-    },
-    "e5-oracle-validation.csv": {
-        "condition": "base (aligned model), abliterated (same model with refusal ablated - the positive control), brick (base with one NaN-inducing flip).",
-        "kind": "harmful (AdvBench prompts) or benign (Alpaca prompts).",
-        "probes": "Number of prompts in this corner.",
-        "refusal": "Share classified as a refusal.",
-        "compliance": "Share classified as having delivered what was asked.",
-        "degenerate": "Share classified as noise rather than language. This is what separates a bricked model from one that merely stopped refusing.",
-        "indeterminate": "Share the oracle could not place. Published rather than hidden: 28% on the aligned model's benign answers, which is the resolution floor of any de-alignment figure built on this instrument.",
-    },
-    "e5-verdicts.csv": {
-        "condition": "base, abliterated or brick, as above.",
-        "probe": "Index within its set, e.g. harmful-0000. The prompt text is not included.",
-        "kind": "harmful or benign.",
-        "keywords": "How many keywords the registered rule derived from the prompt. Derived, never authored per item: a hand-written list per prompt is a degree of freedom that could be tuned toward the expected result.",
-        "required": "How many of those keywords an answer had to contain to count as on-topic.",
-        "verdict": "refusal, compliance, degenerate or indeterminate, assigned to the FULL answer - never to a prefix, and never by a second language model.",
-        "answer_chars": "Length of the generated answer in characters.",
-        "answer_sha256": "First 16 hex characters of the answer's SHA-256. Enough to check whether two runs produced the same text, not enough to recover it.",
-    },
-}
 
-FILE_DESCRIPTIONS = {
-    "e1-bit-hierarchy-base.csv": "E1 - one row per bit position of a bfloat16 weight, for Qwen2.5-0.5B-Instruct. Exact counts over all 494,032,768 weights, not a sample. USE IT FOR: which bit position an attacker gains most from. LIMITATION: it measures what happens to a number, not to the model.",
-    "e1-bit-hierarchy-abliterated.csv": "E1 - the same profile on the abliterated positive control. USE IT FOR: checking whether removing alignment changes weight geometry. It does not: 176 catastrophic bits differ out of 7.9 billion.",
-    "e1-bit-hierarchy-qwen3-4b.csv": "E1 at scale - the same per-bit profile on Qwen3-4B-Instruct-2507, a different generation and 8x the size. DERIVED BY: re-running the same script on a hosted CPU session.",
-    "e1-bit-hierarchy-qwen25-7b.csv": "E1 at scale - the same per-bit profile on Qwen2.5-7B-Instruct. USE IT WITH the two above to see that the catastrophic share is a property of the FORMAT, not of the model.",
-    "e1-perturbation-spectrum.csv": "E1 - the whole bit space partitioned by OUTCOME instead of thresholded. Seven classes per model summing to exactly 1. WHY IT EXISTS: the catastrophic threshold is one-sided and cannot register a weight being annihilated rather than exploded. That channel is 18.74% of the bit space, three times the catastrophic 6.26%, and the technical note called it harmless until this table was produced.",
-    "e1-scale-summary.csv": "E1 at scale - one row per subject across a 15x range of size, with the coverage checks that make the comparison admissible. RESULT: 6.2595% at 0.5B, 6.2588% at 4B, 6.2839% at 7.6B.",
-    "e1-scale-manifest.json": "E1 at scale - repositories, revisions, shard counts and per-file digests for the three subjects. Lets you verify you measured the same bytes before comparing any figure.",
-    "e1-summary.csv": "E1 - one row per model: catastrophic bit share and the exponent statistics that explain it. The 0.5B row was re-measured, not quoted, when the scale run was added.",
-    "e2-degradation.csv": "E2 - perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults. USE IT FOR: the fact that degradation is not gradual - 7 intact, 1 partial, 21 destroyed. LIMITATION: measured on the 0.5B model, and five seeds per point rather than the ten originally planned.",
-    "e3-gguf-bit-census.csv": "E3 - the bits of the q4_k_m GGUF file grouped by function. RESULT: 7.018% of the file is fp16 scales, and those scales carry the entire catastrophic surface.",
-    "e3-gguf-scale-fragility.csv": "E3 - flip outcomes for the fp16 block scales, one row per (block size, bit position). USE IT FOR: the reference point where the 1/16 geometric floor is attained exactly, because the top exponent bit of a scale is zero in 100.000000% of cases.",
-    "e3-comparison.csv": "E3 - bf16 against q4_k_m: catastrophic share, blast radius and weights lost per random flip. WARNING: the last column is per FLIP. Do not compare the two formats with it alone - read e3-normalisation.csv first.",
-    "e3-normalisation.csv": "E3 - the three ratios between the two formats, each carrying the question it answers. WHY IT EXISTS: an earlier version of this dataset published only the largest of the three, 2.807x, under a condition that did not hold. At equal physical exposure it is 1.379x.",
-    "e5-oracle-validation.csv": "Oracle validation - verdict shares at six corners: three models against two probe sets. USE IT FOR: whether the classifier works before trusting anything built on it. LIMITATION: no comparison against human labels exists, so no Cohen's kappa - a declared validity condition that is currently unsatisfied.",
-    "e5-verdicts.csv": "Oracle validation - one row per answer: verdict, length and a truncated SHA-256. No generated text, whole or partial. The hash is what lets you check whether two runs produced identical answers, which is how the batch-size effect on greedy decoding was found.",
-    "e5-run-manifest.json": "The exact generation configuration behind the two files above: specification digest, model and probe revisions, batch size and ordering, decoding parameters, torch version, devices. Two runs whose manifests differ did not answer the same probes with the same text.",
-    "models-manifest.json": "Repository, revision, byte count and SHA-256 of every artefact measured. The entry point for verifying you have the same bytes.",
-}
+class MetadataError(ValueError):
+    """The metadata cannot be built from what is on disk."""
 
-# Kaggle uses a controlled vocabulary and rejects the rest of an update in silence.
-# These four are the ones it accepts; "computer security", "reliability", "large
-# language models" and "model robustness" are not in it.
-LICENCE = "Attribution 4.0 International (CC BY 4.0)"
 
-KEYWORDS = ["computer science", "artificial intelligence", "nlp", "deep learning"]
+def build(descriptors: dict, resources: list[dict]) -> list[dict]:
+    """One resource entry per published file, with its column schema.
 
-# Kaggle requires 20-80 characters and rejects the update outright outside that.
-SUBTITLE = "Weight fragility in LLMs: exact per-bit counts and fault-injection damage"
+    Raises rather than emitting a partial schema: a descriptor table that has silently
+    stopped covering a column is worse than none, because the gap is invisible on the
+    page while the file still looks documented.
+    """
+    files = descriptors["files"]
+    built = []
+    for resource in resources:
+        path = resource["path"]
+        if path not in files:
+            raise MetadataError(
+                f"{path} is published with no entry in {DESCRIPTORS.name}"
+            )
+        entry: dict = {"path": path, "description": files[path]["description"]}
+        columns = files[path].get("columns")
+        if columns:
+            with (RESULTS / path).open() as handle:
+                header = next(csv.reader(handle))
+            missing = [name for name in header if name not in columns]
+            if missing:
+                raise MetadataError(f"{path}: columns with no descriptor: {missing}")
+            entry["schema"] = {
+                "fields": [{"name": n, "description": columns[n]} for n in header]
+            }
+        built.append(entry)
+    return built
 
 
 def main() -> int:
-    meta = json.loads(TARGET.read_text())
-    meta["subtitle"] = SUBTITLE
-    meta["description"] = pathlib.Path("kaggle/dataset/DESCRIPTION.md").read_text()
-    meta["keywords"] = KEYWORDS
-    # Stored under the canonical name the server returns, not the shorthand it
-    # accepts: two spellings of one licence make a diff between the repository and
-    # the page look like a defect. Note that `datasets version` does NOT send this
-    # field -- only `datasets metadata --update` does.
-    meta["licenses"] = [{"name": LICENCE}]
+    descriptors = yaml.safe_load(DESCRIPTORS.read_text())
+    subtitle = descriptors["subtitle"]
+    low, high = SUBTITLE_LIMITS
+    if not low <= len(subtitle) <= high:
+        raise MetadataError(
+            f"subtitle is {len(subtitle)} characters, Kaggle wants {low}-{high}"
+        )
 
-    for resource in meta["resources"]:
-        path = resource["path"]
-        resource["description"] = FILE_DESCRIPTIONS[path]
-        if path in SCHEMAS:
-            with (RESULTS / path).open() as handle:
-                header = next(csv.reader(handle))
-            missing = [c for c in header if c not in SCHEMAS[path]]
-            if missing:
-                raise SystemExit(f"{path}: columns without a descriptor: {missing}")
-            resource["schema"] = {
-                "fields": [{"name": c, "description": SCHEMAS[path][c]} for c in header]
-            }
+    meta = json.loads(TARGET.read_text())
+    meta["subtitle"] = subtitle
+    meta["description"] = DESCRIPTION.read_text()
+    meta["keywords"] = descriptors["keywords"]
+    # Under the canonical name the server returns, not the shorthand it accepts: two
+    # spellings of one licence make a diff between the repository and the page look like
+    # a defect when it is not.
+    meta["licenses"] = [{"name": descriptors["licence"]}]
+    meta["resources"] = build(descriptors, meta["resources"])
 
     TARGET.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
-    described = sum(len(r.get("schema", {}).get("fields", [])) for r in meta["resources"])
-    print(
-        f"  {len(meta['resources'])} file descritti, {described} colonne con descrittore"
-    )
-    print(f"  tag: {len(KEYWORDS)}   subtitle: {len(SUBTITLE)} caratteri")
+    columns = sum(len(r.get("schema", {}).get("fields", [])) for r in meta["resources"])
+    print(f"{len(meta['resources'])} files, {columns} columns described -> {TARGET.name}")
     return 0
 
 
