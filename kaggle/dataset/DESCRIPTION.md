@@ -28,6 +28,7 @@ worth, in numbers?**
 | `e1-summary.csv` | 2 | E1 — one row per model: catastrophic bit share and the exponent statistics behind it |
 | `e1-bit-hierarchy-qwen3-4b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen3-4B-Instruct-2507` |
 | `e1-bit-hierarchy-qwen25-7b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen2.5-7B-Instruct` |
+| `e1-perturbation-spectrum.csv` | 14 | E1 — the bit space partitioned by **outcome** instead of thresholded: seven classes per model that sum to 1, including the channel that removes a weight rather than exploding it |
 | `e1-scale-summary.csv` | 3 | E1 at scale — one row per subject across a 15× range, with the coverage checks |
 | `e1-scale-manifest.json` | — | E1 at scale — repositories, revisions, shard counts and per-file digests |
 | `e2-degradation.csv` | 30 | E2 — perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults |

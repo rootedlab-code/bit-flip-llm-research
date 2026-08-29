@@ -20,6 +20,10 @@
       "description": "E1 - one row per model: catastrophic bit share and the exponent statistics behind it"
     },
     {
+      "path": "e1-perturbation-spectrum.csv",
+      "description": "E1 - the whole bit space partitioned by outcome rather than thresholded: seven classes summing to 1, including the channel that removes a weight instead of exploding it"
+    },
+    {
       "path": "e1-bit-hierarchy-qwen3-4b.csv",
       "description": "E1 at scale - the same per-bit profile on Qwen3-4B-Instruct-2507"
     },
