@@ -30,11 +30,18 @@ import pandas as pd
 # assuming the mount path. A dataset does not always land under the name you expect, and
 # a path assumed is a path that fails on somebody else's copy.
 ANCHOR = "e1-summary.csv"
-SEARCH = [*pathlib.Path("/kaggle/input").glob("*"), pathlib.Path("results"), pathlib.Path(".")]
-DATA = next((p for p in SEARCH if (p / ANCHOR).exists()), None)
+ROOTS = [pathlib.Path("/kaggle/input"), pathlib.Path("results"), pathlib.Path(".")]
+DATA = next(
+    (
+        found.parent
+        for root in ROOTS
+        if root.exists()
+        for found in ([root / ANCHOR] if (root / ANCHOR).exists() else root.rglob(ANCHOR))
+    ),
+    None,
+)
 if DATA is None:
-    looked = ", ".join(str(p) for p in SEARCH) or "nowhere"
-    raise SystemExit(f"{ANCHOR} not found. Looked in: {looked}")
+    raise SystemExit(f"{ANCHOR} not found under any of: {[str(r) for r in ROOTS]}")
 
 
 def read(name: str) -> pd.DataFrame:
