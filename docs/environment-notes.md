@@ -197,6 +197,72 @@ rather than discovered: commit only what is ready to be public, or do not commit
 The visible symptom is a push rejected with `cannot lock ref ... is at X but expected Y`,
 where X is a commit that already contains your own work.
 
+## The Kaggle CLI ignores the `id` field and slugs the title instead
+
+`kernel-metadata.json` declares an `id`. The CLI does not use it. Pushed with
+`"id": "seb001010/bit-flip-e5b-chosen"` and
+`"title": "bit-flip e5b silent dealignment (chosen arm)"`, it warns —
+
+```
+Your kernel title does not resolve to the specified id.
+```
+
+— and then creates the kernel at the **title's** slug,
+`bit-flip-e5b-silent-dealignment-chosen-arm`. The push succeeds, the URL it prints is the
+title's, and the declared id names nothing.
+
+How it bites is worse than the mismatch:
+
+```
+kaggle kernels status seb001010/bit-flip-e5b-chosen
+  -> Permission 'kernels.get' was denied ... It can also occur if the notebook is private.
+```
+
+That reads as a permissions or visibility problem. It is a kernel that **does not exist**.
+Anyone trusting the message would conclude their page was private when it had never been
+created. Same family as `machine_shape`: the field is accepted, the server does something
+else, and the error points somewhere unrelated. Give a kernel a title whose slug *is* the
+id, or align the id to the title's slug after the first push.
+
+## An identifier is copied from its machine source, never from prose that truncates it
+
+The E5b notebook was written with a dataset revision that does not exist. The eight
+characters came from a technical note — `Alpaca @dce01c9b` — and the remaining
+thirty-two were reconstructed, wrongly, including the eighth character:
+
+```
+results/e5-run-manifest.json   dce01c9b08f87459cf36a430d809084718273017   full, versioned
+docs/e5-oracle-validation.md   dce01c9b                                   truncated for a reader
+what was written               dce01c9e388e0a4c3a1b4a4b0f0b3b2c1f0c0d0e   fabricated
+```
+
+The true value was one file away, in the manifest that exists precisely so that a run
+never has to be reconstructed. The source consulted was the one formatted for a human
+instead of the one written for a machine. **An eight-character prefix in a document is a
+citation, not a datum.**
+
+This is not the ordinary lapse that more care would prevent, and that is the part worth
+recording. **A forty-character hash is the most plausible-looking value there is.** It
+contains nothing that could seem wrong, so nothing triggers a check. It is the limiting
+case of the argument the two entries above make: verification cannot depend on a figure
+looking strange, because the ones that matter never do.
+
+## An attestation run pays twice
+
+`e5_spec.yaml` requires the notebook carrying the specification digests to be public
+*before* the first token exists, and pushing a Kaggle notebook runs it. So version 1 of
+each E5b kernel prints the digests and generates nothing. That was its whole purpose.
+
+It did a second job nobody designed. **A run that resolves every external identifier
+while computing nothing is a dry run of the identifiers.** The fabricated revision above
+surfaced there, as a 404 two minutes in, rather than after the 2.7 hours of generation
+the chosen arm would have spent before reaching the same line.
+
+The generalisation outlives the attestation requirement: a pass that resolves every model
+revision, dataset revision and corpus pin without generating anything costs minutes and
+moves configuration failures ahead of the expense. It is worth doing in any notebook that
+downloads before it computes.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
