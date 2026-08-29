@@ -1,7 +1,7 @@
 # %% [markdown]
 # # Who picks the bit
 #
-# ## A cosmic ray and an attacker do the same thing to a language model. What is the difference worth?
+# ## Same event, two literatures. What is it worth to choose the address?
 #
 # A bit flips in a DRAM cell. It happens on its own — cosmic rays, thermal noise, a cell
 # that leaks — and it happens on purpose, because Rowhammer lets a process on the same
@@ -67,7 +67,7 @@ print(f"{len(list(DATA.glob('*')))} files")
 # | **E1** | Which of the 16 bits of a weight matters, and how much? | **measured** |
 # | **E3** | Does quantisation protect? | **measured** |
 # | **E2** | How much does the model actually degrade? | **measured** |
-# | oracle | Can a program tell refusal from compliance reliably? | **measured**, six corners of six |
+# | oracle | Can a program tell refusal from compliance? | **measured**, 6 corners of 6 |
 # | **E5** | Does *alignment* fail before *capability*? | **running** |
 # | **E4** | How long until a natural fault hits a critical bit? | not run |
 # | **E6** | Does a flipped agent take destructive actions? | not run |
@@ -88,7 +88,8 @@ print(f"{len(list(DATA.glob('*')))} files")
 
 # %%
 bits = read("e1-bit-hierarchy-base.csv")
-view = bits[["bit", "field", "zero_bit_fraction", "median_delta", "catastrophic_fraction"]]
+columns = ["bit", "field", "zero_bit_fraction", "median_delta", "catastrophic_fraction"]
+view = bits[columns]
 print(view.to_string(index=False, float_format=lambda v: f"{v:.6g}"))
 
 # %% [markdown]
@@ -108,7 +109,8 @@ summary = read("e1-summary.csv").iloc[0]
 print(f"weights            {summary.weights:,}")
 print(f"bits in the file   {summary.total_bits:,}")
 print(f"catastrophic bits  {summary.catastrophic_bits:,}")
-print(f"share              {summary.catastrophic_bit_fraction:.6%}  =  one bit in {summary.one_bit_in:.2f}")
+print(f"share              {summary.catastrophic_bit_fraction:.6%}")
+print(f"                   = one bit in {summary.one_bit_in:.2f}")
 
 # %% [markdown]
 # ## The channel that a threshold cannot see
@@ -124,7 +126,8 @@ print(f"share              {summary.catastrophic_bit_fraction:.6%}  =  one bit i
 # %%
 spectrum = read("e1-perturbation-spectrum.csv")
 base = spectrum[spectrum.model == "base"].sort_values("bit_share", ascending=False)
-print(base[["outcome", "bit_share", "positions"]].to_string(index=False, float_format=lambda v: f"{v:.7%}"))
+shown = base[["outcome", "bit_share", "positions"]]
+print(shown.to_string(index=False, float_format=lambda v: f"{v:.7%}"))
 print(f"\nsum of the classes: {base.bit_share.sum():.10f}")
 
 # %% [markdown]
@@ -152,10 +155,12 @@ print(f"\nsum of the classes: {base.bit_share.sum():.10f}")
 
 # %%
 scale = read("e1-scale-summary.csv")
-print(scale[["model", "weights", "catastrophic_bit_fraction", "top_exponent_zero_fraction"]]
-      .to_string(index=False, float_format=lambda v: f"{v:.6%}"))
+cols = ["model", "weights", "catastrophic_bit_fraction", "top_exponent_zero_fraction"]
+shown = scale[cols]
+print(shown.to_string(index=False, float_format=lambda v: f"{v:.6%}"))
+spread = scale.catastrophic_bit_fraction.max() - scale.catastrophic_bit_fraction.min()
 print(f"\nspread across a 15x range: "
-      f"{(scale.catastrophic_bit_fraction.max() - scale.catastrophic_bit_fraction.min()) * 100:.4f} "
+      f"{spread * 100:.4f} "
       f"percentage points")
 
 # %% [markdown]
@@ -182,7 +187,7 @@ print(f"\nspread across a 15x range: "
 # %%
 norm = read("e3-normalisation.csv")
 for _, row in norm.iterrows():
-    mark = "  <-- the one a field fault rate must be crossed with" if row.feeds_fault_rate else ""
+    mark = "  <-- crossed with a field fault rate" if row.feeds_fault_rate else ""
     print(f"{row.ratio:>7.4f}x   {row.key}{mark}")
     print(f"          {row.question}")
 
@@ -198,7 +203,8 @@ for _, row in norm.iterrows():
 #
 # **And the other channel points the other way.** Measured on the same two populations,
 # the annihilation channel is 18.74% of `bfloat16` weight bits against 0.0014% and 0.027%
-# of the `fp16` scale bits — three to four orders of magnitude *less* exposed. Quantisation
+# of the `fp16` scale bits — three to four orders of magnitude *less* exposed.
+# Quantisation
 # concentrates the exploding fault and very nearly eliminates the annihilating one. One
 # threshold could not have told you that.
 
@@ -212,7 +218,8 @@ for _, row in norm.iterrows():
 dmg = read("e2-degradation.csv")
 print(pd.crosstab(dmg.policy, dmg.damage_class).to_string())
 print()
-print(dmg[dmg.policy == "random"].groupby("flips").damage_class.value_counts().to_string())
+randoms = dmg[dmg.policy == "random"]
+print(randoms.groupby("flips").damage_class.value_counts().to_string())
 
 # %% [markdown]
 # **Degradation is not gradual.** The model either survives a fault untouched or stops
@@ -292,7 +299,8 @@ print(oracle.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 manifest = load("models-manifest.json")
 print("every artefact measured, pinned by revision and digest:\n")
 for entry in manifest:
-    print(f"  {entry['repo_id']:<46} @{entry['revision'][:8]}  {entry['bytes']:>13,} bytes")
+    print(f"  {entry['repo_id']:<46} @{entry['revision'][:8]}"
+          f"  {entry['bytes']:>13,} bytes")
 print("\nreproduce:")
 print("  uv sync && uv run pytest")
 print("  uv run python -m bitflip.fetch")
