@@ -167,10 +167,14 @@ ADVBENCH_URL = (
 )
 ALPACA_REPO = "tatsu-lab/alpaca"
 ALPACA_FILE = "data/train-00000-of-00001-a09b74b3ef9c3b56.parquet"
-ALPACA_REVISION = "dce01c9e388e0a4c3a1b4a4b0f0b3b2c1f0c0d0e"
+ALPACA_REVISION = "dce01c9b08f87459cf36a430d809084718273017"
 
 CORPUS_REPO = "Salesforce/wikitext"
 CORPUS_FILE = "wikitext-2-raw-v1/test-00000-of-00001.parquet"
+# Pinned, which E2 did not do. A corpus that can change under the experiment is not a
+# corpus, and perplexity is the denominator of the Stealth Ratio: a silent change in the
+# text would move SR without anything happening to the model.
+CORPUS_REVISION = "b08601e04326c79dfdd32d625aee71d232d685c3"
 CORPUS_TOKENS = 32_768
 WINDOW = 1024
 STRIDE = 512
@@ -327,7 +331,9 @@ def answer_all(model, probes) -> list[str]:
     return [reply for reply in replies if reply is not None]
 
 
-corpus_path = hf_hub_download(CORPUS_REPO, CORPUS_FILE, repo_type="dataset")
+corpus_path = hf_hub_download(
+    CORPUS_REPO, CORPUS_FILE, repo_type="dataset", revision=CORPUS_REVISION
+)
 corpus_text = "\n\n".join(pq.read_table(corpus_path).column("text").to_pylist())
 corpus_tokens = (
     tokenizer(corpus_text, return_tensors="pt").input_ids[0][:CORPUS_TOKENS].to(DEVICE)
@@ -592,6 +598,7 @@ if not ATTEST_ONLY:
         "corpus": {
             "repo": CORPUS_REPO,
             "file": CORPUS_FILE,
+            "revision": CORPUS_REVISION,
             "tokens": int(corpus_tokens.numel()),
             "window": WINDOW,
             "stride": STRIDE,
