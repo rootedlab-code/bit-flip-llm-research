@@ -3,77 +3,609 @@
   "id": "seb001010/bit-flip-results",
   "licenses": [
     {
-      "name": "MIT"
+      "name": "Attribution 4.0 International (CC BY 4.0)"
     }
   ],
   "resources": [
     {
       "path": "e1-bit-hierarchy-base.csv",
-      "description": "E1 - flip outcome per bit position, Qwen2.5-0.5B-Instruct (bf16)"
+      "description": "E1 - one row per bit position of a bfloat16 weight, for Qwen2.5-0.5B-Instruct. Exact counts over all 494,032,768 weights, not a sample. USE IT FOR: which bit position an attacker gains most from. LIMITATION: it measures what happens to a number, not to the model.",
+      "schema": {
+        "fields": [
+          {
+            "name": "bit",
+            "description": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa."
+          },
+          {
+            "name": "field",
+            "description": "IEEE-754 field the position belongs to: sign, exponent or mantissa."
+          },
+          {
+            "name": "zero_bit_fraction",
+            "description": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit."
+          },
+          {
+            "name": "median_delta",
+            "description": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated."
+          },
+          {
+            "name": "p99_delta",
+            "description": "99th percentile of the same weighted distribution."
+          },
+          {
+            "name": "max_finite_delta",
+            "description": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above."
+          },
+          {
+            "name": "amplified_fraction",
+            "description": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section."
+          },
+          {
+            "name": "non_finite_fraction",
+            "description": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption."
+          },
+          {
+            "name": "catastrophic_fraction",
+            "description": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show."
+          }
+        ]
+      }
     },
     {
       "path": "e1-bit-hierarchy-abliterated.csv",
-      "description": "E1 - same profile on the abliterated positive control"
+      "description": "E1 - the same profile on the abliterated positive control. USE IT FOR: checking whether removing alignment changes weight geometry. It does not: 176 catastrophic bits differ out of 7.9 billion.",
+      "schema": {
+        "fields": [
+          {
+            "name": "bit",
+            "description": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa."
+          },
+          {
+            "name": "field",
+            "description": "IEEE-754 field the position belongs to: sign, exponent or mantissa."
+          },
+          {
+            "name": "zero_bit_fraction",
+            "description": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit."
+          },
+          {
+            "name": "median_delta",
+            "description": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated."
+          },
+          {
+            "name": "p99_delta",
+            "description": "99th percentile of the same weighted distribution."
+          },
+          {
+            "name": "max_finite_delta",
+            "description": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above."
+          },
+          {
+            "name": "amplified_fraction",
+            "description": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section."
+          },
+          {
+            "name": "non_finite_fraction",
+            "description": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption."
+          },
+          {
+            "name": "catastrophic_fraction",
+            "description": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show."
+          }
+        ]
+      }
     },
     {
       "path": "e1-summary.csv",
-      "description": "E1 - one row per model: catastrophic bit share and the exponent statistics behind it"
+      "description": "E1 - one row per model: catastrophic bit share and the exponent statistics that explain it. The 0.5B row was re-measured, not quoted, when the scale run was added.",
+      "schema": {
+        "fields": [
+          {
+            "name": "model",
+            "description": "Label of the subject within this dataset."
+          },
+          {
+            "name": "artifact",
+            "description": "Key of the artefact in models-manifest.json, where its byte count and SHA-256 live."
+          },
+          {
+            "name": "revision",
+            "description": "Exact commit of the source repository. An experiment that does not know which bytes it measured is not reproducible."
+          },
+          {
+            "name": "weights",
+            "description": "Number of parameters in the population measured."
+          },
+          {
+            "name": "total_bits",
+            "description": "16 x weights: the size of the bit space a random fault lands in."
+          },
+          {
+            "name": "fraction_below_one",
+            "description": "Share of weights with |w| < 1. This is why the top exponent bit is almost always 0, and therefore why it is predictable."
+          },
+          {
+            "name": "median_exponent",
+            "description": "Median of the stored exponent field over the population."
+          },
+          {
+            "name": "exponent_bias",
+            "description": "The format's exponent bias: 127 for bfloat16, 15 for fp16."
+          },
+          {
+            "name": "catastrophic_bits",
+            "description": "How many bits of the file are catastrophic when flipped."
+          },
+          {
+            "name": "catastrophic_bit_fraction",
+            "description": "The same quantity as a share of total_bits."
+          },
+          {
+            "name": "one_bit_in",
+            "description": "1 / catastrophic_bit_fraction - the same share in the form the figure is usually quoted in."
+          }
+        ]
+      }
     },
     {
       "path": "e1-perturbation-spectrum.csv",
-      "description": "E1 - the whole bit space partitioned by outcome rather than thresholded: seven classes summing to 1, including the channel that removes a weight instead of exploding it"
+      "description": "E1 - the whole bit space partitioned by OUTCOME instead of thresholded. Seven classes per model summing to exactly 1. WHY IT EXISTS: the catastrophic threshold is one-sided and cannot register a weight being annihilated rather than exploded. That channel is 18.74% of the bit space, three times the catastrophic 6.26%, and the technical note called it harmless until this table was produced.",
+      "schema": {
+        "fields": [
+          {
+            "name": "model",
+            "description": "Subject: base or its abliterated control."
+          },
+          {
+            "name": "outcome",
+            "description": "What the flip does, by outcome and not by bit position: negligible, moderate_attenuation, moderate_amplification, sign_inversion, collapse (divides by >= 2^16, so the weight is gone), catastrophic_amplification, non_finite."
+          },
+          {
+            "name": "bit_share",
+            "description": "Share of the file's whole bit space in this class. The seven classes sum to 1 exactly, which is the check that nothing is unaccounted for."
+          },
+          {
+            "name": "positions",
+            "description": "Bit positions contributing to this class. A conclusion of the partition, not an input to it."
+          }
+        ]
+      }
     },
     {
       "path": "e1-bit-hierarchy-qwen3-4b.csv",
-      "description": "E1 at scale - the same per-bit profile on Qwen3-4B-Instruct-2507"
+      "description": "E1 at scale - the same per-bit profile on Qwen3-4B-Instruct-2507, a different generation and 8x the size. DERIVED BY: re-running the same script on a hosted CPU session.",
+      "schema": {
+        "fields": [
+          {
+            "name": "bit",
+            "description": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa."
+          },
+          {
+            "name": "field",
+            "description": "IEEE-754 field the position belongs to: sign, exponent or mantissa."
+          },
+          {
+            "name": "zero_bit_fraction",
+            "description": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit."
+          },
+          {
+            "name": "median_delta",
+            "description": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated."
+          },
+          {
+            "name": "p99_delta",
+            "description": "99th percentile of the same weighted distribution."
+          },
+          {
+            "name": "max_finite_delta",
+            "description": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above."
+          },
+          {
+            "name": "amplified_fraction",
+            "description": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section."
+          },
+          {
+            "name": "non_finite_fraction",
+            "description": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption."
+          },
+          {
+            "name": "catastrophic_fraction",
+            "description": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show."
+          }
+        ]
+      }
     },
     {
       "path": "e1-bit-hierarchy-qwen25-7b.csv",
-      "description": "E1 at scale - the same per-bit profile on Qwen2.5-7B-Instruct"
+      "description": "E1 at scale - the same per-bit profile on Qwen2.5-7B-Instruct. USE IT WITH the two above to see that the catastrophic share is a property of the FORMAT, not of the model.",
+      "schema": {
+        "fields": [
+          {
+            "name": "bit",
+            "description": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa."
+          },
+          {
+            "name": "field",
+            "description": "IEEE-754 field the position belongs to: sign, exponent or mantissa."
+          },
+          {
+            "name": "zero_bit_fraction",
+            "description": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit."
+          },
+          {
+            "name": "median_delta",
+            "description": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated."
+          },
+          {
+            "name": "p99_delta",
+            "description": "99th percentile of the same weighted distribution."
+          },
+          {
+            "name": "max_finite_delta",
+            "description": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above."
+          },
+          {
+            "name": "amplified_fraction",
+            "description": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section."
+          },
+          {
+            "name": "non_finite_fraction",
+            "description": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption."
+          },
+          {
+            "name": "catastrophic_fraction",
+            "description": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show."
+          }
+        ]
+      }
     },
     {
       "path": "e1-scale-summary.csv",
-      "description": "E1 at scale - one row per subject across a 15x range, with the coverage checks"
+      "description": "E1 at scale - one row per subject across a 15x range of size, with the coverage checks that make the comparison admissible. RESULT: 6.2595% at 0.5B, 6.2588% at 4B, 6.2839% at 7.6B.",
+      "schema": {
+        "fields": [
+          {
+            "name": "model",
+            "description": "Label of the subject within this dataset."
+          },
+          {
+            "name": "repo",
+            "description": "Source repository on the Hugging Face Hub."
+          },
+          {
+            "name": "revision",
+            "description": "Exact commit of the source repository. An experiment that does not know which bytes it measured is not reproducible."
+          },
+          {
+            "name": "weights",
+            "description": "Number of parameters in the population measured."
+          },
+          {
+            "name": "total_bits",
+            "description": "16 x weights: the size of the bit space a random fault lands in."
+          },
+          {
+            "name": "fraction_below_one",
+            "description": "Share of weights with |w| < 1. This is why the top exponent bit is almost always 0, and therefore why it is predictable."
+          },
+          {
+            "name": "median_exponent",
+            "description": "Median of the stored exponent field over the population."
+          },
+          {
+            "name": "exponent_bias",
+            "description": "The format's exponent bias: 127 for bfloat16, 15 for fp16."
+          },
+          {
+            "name": "catastrophic_bits",
+            "description": "How many bits of the file are catastrophic when flipped."
+          },
+          {
+            "name": "catastrophic_bit_fraction",
+            "description": "The same quantity as a share of total_bits."
+          },
+          {
+            "name": "one_bit_in",
+            "description": "1 / catastrophic_bit_fraction - the same share in the form the figure is usually quoted in."
+          },
+          {
+            "name": "stored_parameters",
+            "description": "Parameters actually found by the parser, against the count the header declares. The two agreeing is the coverage check."
+          },
+          {
+            "name": "bf16_parameter_share",
+            "description": "Share of parameters stored as bfloat16. Below 1 the headline figure would be a mixture of formats rather than a measurement of one."
+          },
+          {
+            "name": "declared_dtype",
+            "description": "Dtype declared by the model's own metadata."
+          },
+          {
+            "name": "tensors",
+            "description": "Number of tensors parsed."
+          },
+          {
+            "name": "shards",
+            "description": "Number of safetensors files the model is split across."
+          },
+          {
+            "name": "declared_size_gap",
+            "description": "Bytes between the file size and the sum of the tensors, which must close for a multi-file model too. A silently misparsed file cannot then be mistaken for a result."
+          },
+          {
+            "name": "top_exponent_zero_fraction",
+            "description": "Share of weights whose bit 14 is 0."
+          },
+          {
+            "name": "top_exponent_catastrophic_fraction",
+            "description": "Share for which flipping bit 14 is catastrophic. A different quantity from the column before it, and the two were once printed under one label."
+          }
+        ]
+      }
     },
     {
       "path": "e1-scale-manifest.json",
-      "description": "E1 at scale - repositories, revisions, shard counts and per-file digests"
+      "description": "E1 at scale - repositories, revisions, shard counts and per-file digests for the three subjects. Lets you verify you measured the same bytes before comparing any figure."
     },
     {
       "path": "e2-degradation.csv",
-      "description": "E2 - perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults"
+      "description": "E2 - perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults. USE IT FOR: the fact that degradation is not gradual - 7 intact, 1 partial, 21 destroyed. LIMITATION: measured on the 0.5B model, and five seeds per point rather than the ten originally planned.",
+      "schema": {
+        "fields": [
+          {
+            "name": "policy",
+            "description": "baseline (no fault), random (addresses drawn uniformly), targeted (addresses chosen by the attack policy)."
+          },
+          {
+            "name": "flips",
+            "description": "Number of bits flipped in this configuration."
+          },
+          {
+            "name": "seed",
+            "description": "RNG seed for random, -1 where the configuration has no randomness."
+          },
+          {
+            "name": "perplexity",
+            "description": "On the WikiText-2 test split, so the absolute value is comparable with the literature. Saturates at the vocabulary size: a destroyed model outputs a uniform distribution and every degree of destruction then looks the same."
+          },
+          {
+            "name": "ratio_to_baseline",
+            "description": "Perplexity divided by the undamaged model's. NaN for chosen faults, which overflow the arithmetic rather than degrading it."
+          },
+          {
+            "name": "top1_agreement",
+            "description": "Share of positions where the damaged model predicts the same token as the undamaged one. Does not saturate, and was identical across two sessions in all 30 configurations where 9 of 30 perplexities were not - the metric to trust."
+          },
+          {
+            "name": "damage_class",
+            "description": "Categorical outcome, defined for every configuration including the NaN ones: intact, partial, uniform_collapse, numeric_collapse."
+          }
+        ]
+      }
     },
     {
       "path": "e3-gguf-bit-census.csv",
-      "description": "E3 - bits of the q4_k_m GGUF file grouped by function"
+      "description": "E3 - the bits of the q4_k_m GGUF file grouped by function. RESULT: 7.018% of the file is fp16 scales, and those scales carry the entire catastrophic surface.",
+      "schema": {
+        "fields": [
+          {
+            "name": "role",
+            "description": "Function of the bits: quant (the quantised values), scale_fp16 (per-block scales in fp16), int_scale (integer sub-block scales inside K-quant super-blocks), float (unquantised tensors: norms and biases)."
+          },
+          {
+            "name": "bits",
+            "description": "Count of data bits in that role."
+          },
+          {
+            "name": "share",
+            "description": "Its share of the file's data bits. The four sum to 1, which is how the parser proves it read the file correctly."
+          }
+        ]
+      }
     },
     {
       "path": "e3-gguf-scale-fragility.csv",
-      "description": "E3 - flip outcomes for the fp16 block scales, by block size and bit position"
+      "description": "E3 - flip outcomes for the fp16 block scales, one row per (block size, bit position). USE IT FOR: the reference point where the 1/16 geometric floor is attained exactly, because the top exponent bit of a scale is zero in 100.000000% of cases.",
+      "schema": {
+        "fields": [
+          {
+            "name": "block_elements",
+            "description": "Number of weights this scale governs: 32 for the legacy quantisations (Q5_0, Q8_0), 256 for the K-quants (Q4_K, Q6_K). It is also the blast radius of one corrupted scale."
+          },
+          {
+            "name": "bit",
+            "description": "Position of the flipped bit, 0 = least significant. In bfloat16: 15 is the sign, 7-14 the exponent, 0-6 the mantissa. In fp16: 15 sign, 10-14 exponent, 0-9 mantissa."
+          },
+          {
+            "name": "field",
+            "description": "IEEE-754 field the position belongs to: sign, exponent or mantissa."
+          },
+          {
+            "name": "zero_bit_fraction",
+            "description": "Fraction of the population in which this bit is 0. Says which way a flip will go for a value drawn at random: near 1 means almost always 0 to 1. This is what makes an attack address-independent - the attacker need not know the value being hit."
+          },
+          {
+            "name": "median_delta",
+            "description": "Median of |w' - w| over the real distribution, each 16-bit pattern weighted by how often it occurs in the file. Not a sample estimate: the whole population is enumerated."
+          },
+          {
+            "name": "p99_delta",
+            "description": "99th percentile of the same weighted distribution."
+          },
+          {
+            "name": "max_finite_delta",
+            "description": "Largest |w' - w| among outcomes that stay finite. Non-finite outcomes are excluded from this column only, so it is not the maximum of the column above."
+          },
+          {
+            "name": "amplified_fraction",
+            "description": "Fraction of the population for which |w'/w| >= 2. A convention, not a fact; see the description's thresholds section."
+          },
+          {
+            "name": "non_finite_fraction",
+            "description": "Fraction for which the flip produces Inf or NaN. These are the loudest failures: a NaN propagates and the model stops answering, which is why they are counted apart from silent corruption."
+          },
+          {
+            "name": "catastrophic_fraction",
+            "description": "Fraction for which |w'/w| >= 2^16 or the outcome is non-finite. One-sided by construction: it registers a magnitude exploding and has nowhere to put a weight being annihilated, which is what e1-perturbation-spectrum.csv exists to show."
+          }
+        ]
+      }
     },
     {
       "path": "e3-comparison.csv",
-      "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius, weights lost per random flip. The three ratios between the formats are in e3-normalisation.csv"
+      "description": "E3 - bf16 against q4_k_m: catastrophic share, blast radius and weights lost per random flip. WARNING: the last column is per FLIP. Do not compare the two formats with it alone - read e3-normalisation.csv first.",
+      "schema": {
+        "fields": [
+          {
+            "name": "format",
+            "description": "bf16 safetensors or gguf q4_k_m - the same model in two storage formats."
+          },
+          {
+            "name": "artifact",
+            "description": "Key of the artefact in models-manifest.json."
+          },
+          {
+            "name": "weights",
+            "description": "Parameters the format stores. The two differ: GGUF unties the embedding and materialises it a second time as output.weight, 151,936 x 896 = 136,134,656 extra weights."
+          },
+          {
+            "name": "total_bits",
+            "description": "Data bits in the file."
+          },
+          {
+            "name": "catastrophic_bits",
+            "description": "Bits whose flip crosses the catastrophic threshold."
+          },
+          {
+            "name": "catastrophic_bit_share",
+            "description": "The same as a share of total_bits."
+          },
+          {
+            "name": "mean_blast_radius",
+            "description": "Weights destroyed by one catastrophic flip, averaged over the file: 1 in bf16, more where a scale governs a block."
+          },
+          {
+            "name": "weights_lost_per_random_flip",
+            "description": "catastrophic share x blast radius. This is a PER-FLIP quantity: see e3-normalisation.csv before comparing the two formats with it."
+          }
+        ]
+      }
     },
     {
       "path": "e3-normalisation.csv",
-      "description": "E3 - the three ratios between the two formats, each with the question it answers"
+      "description": "E3 - the three ratios between the two formats, each carrying the question it answers. WHY IT EXISTS: an earlier version of this dataset published only the largest of the three, 2.807x, under a condition that did not hold. At equal physical exposure it is 1.379x.",
+      "schema": {
+        "fields": [
+          {
+            "name": "key",
+            "description": "What is held equal between the two formats: per flip, per file at equal physical exposure, or per file normalised on each format's own parameters."
+          },
+          {
+            "name": "question",
+            "description": "The question that choice of denominator answers, in words. Published with the number because the number alone invites the wrong one."
+          },
+          {
+            "name": "ratio",
+            "description": "gguf / bf16 under that normalisation. All three are above 1, so the direction survives every choice; the magnitude does not, ranging from 1.081 to 2.807."
+          },
+          {
+            "name": "feeds_fault_rate",
+            "description": "True for the single row a field fault rate may be crossed with. Field rates are quoted per bit per hour, so the per-flip figure would overstate that bridge twofold, in the alarming direction."
+          }
+        ]
+      }
     },
     {
       "path": "e5-oracle-validation.csv",
-      "description": "Oracle validation - verdict shares at the six corners, three models against two probe sets"
+      "description": "Oracle validation - verdict shares at six corners: three models against two probe sets. USE IT FOR: whether the classifier works before trusting anything built on it. LIMITATION: no comparison against human labels exists, so no Cohen's kappa - a declared validity condition that is currently unsatisfied.",
+      "schema": {
+        "fields": [
+          {
+            "name": "condition",
+            "description": "base (aligned model), abliterated (same model with refusal ablated - the positive control), brick (base with one NaN-inducing flip)."
+          },
+          {
+            "name": "kind",
+            "description": "harmful (AdvBench prompts) or benign (Alpaca prompts)."
+          },
+          {
+            "name": "probes",
+            "description": "Number of prompts in this corner."
+          },
+          {
+            "name": "refusal",
+            "description": "Share classified as a refusal."
+          },
+          {
+            "name": "compliance",
+            "description": "Share classified as having delivered what was asked."
+          },
+          {
+            "name": "degenerate",
+            "description": "Share classified as noise rather than language. This is what separates a bricked model from one that merely stopped refusing."
+          },
+          {
+            "name": "indeterminate",
+            "description": "Share the oracle could not place. Published rather than hidden: 28% on the aligned model's benign answers, which is the resolution floor of any de-alignment figure built on this instrument."
+          }
+        ]
+      }
     },
     {
       "path": "e5-verdicts.csv",
-      "description": "Oracle validation - one row per answer: verdict, length and a truncated SHA-256. No generated text"
+      "description": "Oracle validation - one row per answer: verdict, length and a truncated SHA-256. No generated text, whole or partial. The hash is what lets you check whether two runs produced identical answers, which is how the batch-size effect on greedy decoding was found.",
+      "schema": {
+        "fields": [
+          {
+            "name": "condition",
+            "description": "base, abliterated or brick, as above."
+          },
+          {
+            "name": "probe",
+            "description": "Index within its set, e.g. harmful-0000. The prompt text is not included."
+          },
+          {
+            "name": "kind",
+            "description": "harmful or benign."
+          },
+          {
+            "name": "keywords",
+            "description": "How many keywords the registered rule derived from the prompt. Derived, never authored per item: a hand-written list per prompt is a degree of freedom that could be tuned toward the expected result."
+          },
+          {
+            "name": "required",
+            "description": "How many of those keywords an answer had to contain to count as on-topic."
+          },
+          {
+            "name": "verdict",
+            "description": "refusal, compliance, degenerate or indeterminate, assigned to the FULL answer - never to a prefix, and never by a second language model."
+          },
+          {
+            "name": "answer_chars",
+            "description": "Length of the generated answer in characters."
+          },
+          {
+            "name": "answer_sha256",
+            "description": "First 16 hex characters of the answer's SHA-256. Enough to check whether two runs produced the same text, not enough to recover it."
+          }
+        ]
+      }
     },
     {
       "path": "e5-run-manifest.json",
-      "description": "Oracle validation - the generation configuration that produced the two files above"
+      "description": "The exact generation configuration behind the two files above: specification digest, model and probe revisions, batch size and ordering, decoding parameters, torch version, devices. Two runs whose manifests differ did not answer the same probes with the same text."
     },
     {
       "path": "models-manifest.json",
-      "description": "repository, revision, byte count and SHA-256 of every artefact measured"
+      "description": "Repository, revision, byte count and SHA-256 of every artefact measured. The entry point for verifying you have the same bytes."
     }
+  ],
+  "subtitle": "Weight fragility in LLMs: exact per-bit counts and fault-injection damage",
+  "description": "# bit-flip results\n\nRaw results from the research project *bit-flip: from the cosmic ray to the attacker who\npicks the bit*. The dataset contains **only** the CSVs produced by the experiments in the\nrepository, plus the manifests describing what was measured and under which configuration:\nno model weights, no generated text, no attack artefacts.\n\n- Code, method and technical notes:\n  **https://github.com/rootedlab-code/bit-flip-llm-research**\n- The notebooks that produced the runnable half:\n  [oracle validation](https://www.kaggle.com/code/seb001010/bit-flip-e5-oracle-validation)\n  and [E2 degradation](https://www.kaggle.com/code/seb001010/bit-flip-e2-degradation)\n\nAuthor: `rootedlab-code`.\n\n## The question\n\nA cosmic ray hitting a DRAM cell and a Rowhammer attack produce the same physical event: a\nbit changes state. Exactly one thing differs — who picks the address. **What is that\nworth, in numbers?**\n\n## What is in it\n\n| File | Rows | Contents |\n|---|---|---|\n| `e1-bit-hierarchy-base.csv` | 16 | E1 — one row per bit position of a `bfloat16` weight, `Qwen/Qwen2.5-0.5B-Instruct` |\n| `e1-bit-hierarchy-abliterated.csv` | 16 | E1 — the same profile on the abliterated positive control |\n| `e1-summary.csv` | 2 | E1 — one row per model: catastrophic bit share and the exponent statistics behind it |\n| `e1-bit-hierarchy-qwen3-4b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen3-4B-Instruct-2507` |\n| `e1-bit-hierarchy-qwen25-7b.csv` | 16 | E1 at scale — the same per-bit profile on `Qwen/Qwen2.5-7B-Instruct` |\n| `e1-perturbation-spectrum.csv` | 14 | E1 — the bit space partitioned by **outcome** instead of thresholded: seven classes per model that sum to 1, including the channel that removes a weight rather than exploding it |\n| `e1-scale-summary.csv` | 3 | E1 at scale — one row per subject across a 15× range, with the coverage checks |\n| `e1-scale-manifest.json` | — | E1 at scale — repositories, revisions, shard counts and per-file digests |\n| `e2-degradation.csv` | 30 | E2 — perplexity, top-1 agreement and damage class for 30 configurations of random and chosen faults |\n| `e3-gguf-bit-census.csv` | 4 | E3 — bits of the `q4_k_m` GGUF file grouped by function |\n| `e3-gguf-scale-fragility.csv` | 32 | E3 — flip outcomes for the `fp16` block scales, one row per (block size, bit position) |\n| `e3-comparison.csv` | 2 | E3 — `bf16` against `q4_k_m`: catastrophic share, blast radius, weights lost per random **flip** |\n| `e3-normalisation.csv` | 3 | E3 — the three ratios between the two formats, each with the question it answers |\n| `e5-oracle-validation.csv` | 6 | Oracle validation — verdict shares at six corners: three models against two probe sets |\n| `e5-verdicts.csv` | 600 | Oracle validation — one row per answer: verdict, length and a truncated SHA-256 |\n| `e5-run-manifest.json` | — | the generation configuration that produced the two files above |\n| `models-manifest.json` | 3 entries | repository, revision, byte count and SHA-256 of every artefact measured |\n\n**E4** (from field fault rates to time-before-a-critical-flip) and **E5 proper** (the\nde-alignment fraction under increasing flips) have not been run. Nothing in this dataset\nstands in for them. No file here contains estimates, interpolations, or figures taken from\nother work.\n\n## Where the numbers come from\n\nE1 and E3 are produced by `experiments/e1_bit_hierarchy.py` and\n`experiments/e3_gguf_surface.py`, and neither has any source of randomness: regenerating\nthe CSVs must return byte-identical files. E2 and the oracle validation are produced by\nthe two Kaggle notebooks linked above.\n\nThe method for the static half, in one sentence: the outcome of flipping a 16-bit\nfloating-point value depends **only on its 16-bit pattern**, not on which weight or scale\ncarries it; so the exact histogram of the 65,536 patterns present in a file summarises the\nwhole population without loss, and every reported fraction is a **count**, not a sample\nestimate.\n\nCoverage is self-verifying. For E1, the histogram total must equal the parameter count\ndeclared by the safetensors header, and it does (494,032,768 weights in 290 tensors, all\nBF16). For E3, the GGUF parser must close its arithmetic exactly on the file size —\n5,947,744 bytes of header plus data equals 491,400,032 bytes — and it does.\n\n## Data dictionary — `e1-bit-hierarchy-*.csv`\n\nThe `bfloat16` format has 1 sign bit (position 15), 8 exponent bits (7–14) and 7 mantissa\nbits (0–6). Position 0 is the least significant bit.\n\n| Column | Type | Definition |\n|---|---|---|\n| `bit` | integer 0–15 | position of the flipped bit |\n| `field` | `sign` / `exponent` / `mantissa` | IEEE-754 field the position belongs to |\n| `zero_bit_fraction` | float ∈ [0,1] | fraction of the population in which that bit is 0. Tells you which way the flip will go for a randomly chosen value: close to 1 means \"almost always 0→1\" |\n| `median_delta` | float ≥ 0 | median of \\|Δw\\| = \\|w′ − w\\| over the real distribution, weighted by how often each pattern occurs |\n| `p99_delta` | float ≥ 0 | 99th percentile of the same distribution |\n| `max_finite_delta` | float ≥ 0 | largest \\|Δw\\| among outcomes that stay finite (infinite outcomes are excluded from this column only) |\n| `amplified_fraction` | float ∈ [0,1] | fraction of the population for which \\|w′/w\\| ≥ 2 |\n| `non_finite_fraction` | float ∈ [0,1] | fraction for which the flip produces a non-finite value (Inf or NaN) |\n| `catastrophic_fraction` | float ∈ [0,1] | fraction for which \\|w′/w\\| ≥ 2¹⁶ **or** the outcome is non-finite |\n\n## Data dictionary — `e1-summary.csv`\n\n| Column | Definition |\n|---|---|\n| `model`, `artifact`, `revision` | which bytes were measured; the revision is the exact commit |\n| `weights`, `total_bits` | population size, and 16 × that |\n| `fraction_below_one` | share of weights with \\|w\\| < 1 — the reason the top exponent bit is almost always 0 |\n| `median_exponent`, `exponent_bias` | the stored exponent field's median, and the format's bias |\n| `catastrophic_bits`, `catastrophic_bit_fraction` | how many bits of the file are catastrophic when flipped, and their share |\n| `one_bit_in` | the same share as \"one bit in N\", which is the form the figure is usually quoted in |\n\n`e1-scale-summary.csv` carries the same columns for three subjects spanning a 15× range,\nplus the checks that make the comparison admissible: `stored_parameters`,\n`bf16_parameter_share` and `declared_dtype` (a file that is not wholly `bf16` would make\nthe figure a mixture rather than a measurement), `tensors`, `shards` and\n`declared_size_gap` (the parser must close its arithmetic on a multi-file model too), and\n`top_exponent_zero_fraction` alongside `top_exponent_catastrophic_fraction`, which are two\ndifferent quantities and were once printed under one label.\n\n**What it answers.** The catastrophic share is a property of the **format**, not of the\nmodel: 6.2595% at 0.5 B, 6.2588% at 4 B, 6.2839% at 7.6 B — a spread of 0.025 percentage\npoints over a 15× range, all of it just above the 6.25% floor that one bit in sixteen\nimposes by geometry.\n\nThat floor is attainable, and `e3-gguf-scale-fragility.csv` is where a real population\nattains it: the `fp16` block scales measure `0.0625` exactly, `== 1/16`, at both block\nsizes, because their top exponent bit is zero in exactly 100.00% of cases and no other\nposition contributes. Against that reference the weights' excess decomposes into two\nopposing terms rather than sitting there as a residue — the weights already carrying a one\nin bit 14 **subtract** (0.000126% at 0.5 B, falling to 0.000013% at 7.6 B as the population\ngrows), and the near-zero weights, whose bits 11–13 are zero, **add** (0.009674% at 0.5 B,\nrising to 0.033891% at 7.6 B). Two surfaces moving in opposite directions with scale, the\nsecond dominating, which is why every model sits above the floor and none below.\n\n**And a claim it narrows.** The top exponent bit is *not* zero in 100% of weights, as a\ntwo-decimal rounding once suggested. It is zero in 99.9980% at 0.5 B, 99.9995% at 4 B and\n99.9998% at 7.6 B: it climbs towards universality with scale without ever reaching it. The\nweights it misses are those with |w| ≥ 2, where flipping that bit **divides** by 2¹²⁸\ninstead of multiplying — which is why they matter more than their number suggests. In the\n`fp16` block scales of the quantised file the same bit *is* zero in exactly 100.00% of\ncases; that population, and only that one, is genuinely universal.\n\n## Data dictionary — `e2-degradation.csv`\n\n| Column | Definition |\n|---|---|\n| `policy` | `baseline` (no fault), `random` (addresses drawn uniformly), `targeted` (addresses chosen) |\n| `flips` | number of bits flipped in that configuration |\n| `seed` | RNG seed for `random`, `-1` where the configuration has no randomness |\n| `perplexity` | on the WikiText-2 test split, so the absolute value is comparable with the literature |\n| `ratio_to_baseline` | perplexity divided by the undamaged model's. **Not** used for the leverage figure: chosen faults overflow the arithmetic and produce NaN |\n| `top1_agreement` | fraction of positions where the damaged model predicts the same token as the undamaged one. Does not saturate, and is the metric to trust |\n| `damage_class` | the categorical outcome, defined for every configuration including the NaN ones |\n\nPerplexity saturates at the vocabulary size — a destroyed model outputs a uniform\ndistribution and every degree of destruction then looks identical. That is why agreement\nand a damage class are carried alongside it.\n\n## Data dictionary — `e3-gguf-scale-fragility.csv`\n\nSame columns as `e1-bit-hierarchy-*.csv`, applied to a different population: the `fp16`\nblock scales of the quantised file rather than the model weights. One extra leading column:\n\n| Column | Type | Definition |\n|---|---|---|\n| `block_elements` | 32 or 256 | number of weights the scale governs. 32 for the legacy quantisations (Q5_0, Q8_0), 256 for the K-quants (Q4_K, Q6_K) |\n\nThe `fp16` format has 1 sign bit (position 15), 5 exponent bits (10–14) and 10 mantissa\nbits (0–9), so the field boundaries in `field` differ from the `bfloat16` files above. The\ntop exponent bit is again position 14, but its multiplier is 2¹⁶ rather than 2¹²⁸.\n\n## Data dictionary — `e3-gguf-bit-census.csv` and `e3-comparison.csv`\n\n| Column | Definition |\n|---|---|\n| `role` | function of the bits: `quant` (the quantised values themselves), `scale_fp16` (per-block scales in fp16), `int_scale` (integer sub-block scales inside K-quant super-blocks), `float` (unquantised tensors: norms and biases) |\n| `bits`, `share` | count of bits in that role, and its share of the file's data bits |\n| `mean_blast_radius` | weights affected by one catastrophic flip, averaged over the file: 1 in `bf16`, more in a quantised format where a scale governs a block |\n| `weights_lost_per_random_flip` | catastrophic share × blast radius — the quantity the two formats are compared on |\n\n## Data dictionary — `e5-oracle-validation.csv` and `e5-verdicts.csv`\n\nThe classifier assigns one of four verdicts to a full generated answer — never to a prefix,\nand never using a second language model: `refusal`, `compliance`, `degenerate`,\n`indeterminate`. Its criteria are frozen in a versioned file with a digest **before** the\nrun that uses them.\n\n`e5-oracle-validation.csv` holds one row per corner (`condition` × `kind`) with the share\nof each verdict. `e5-verdicts.csv` holds one row per answer:\n\n| Column | Definition |\n|---|---|\n| `condition` | `base` (the aligned model), `abliterated` (a build of the same model with refusal ablated — the positive control), `brick` (the base with one NaN-inducing flip) |\n| `probe` | index within its set, e.g. `harmful-0000`. **The prompt text is not included** |\n| `kind` | `harmful` (AdvBench) or `benign` (Alpaca) |\n| `keywords` | how many keywords were derived from the prompt by the registered rule — never authored per item |\n| `required` | how many of them an answer had to contain to count as on-topic |\n| `verdict` | the class assigned |\n| `answer_chars` | length of the generated answer in characters |\n| `answer_sha256` | first 16 hex characters of the SHA-256 of the answer — enough to check whether two runs produced the same text, not enough to recover it |\n\n**The indeterminate share is published rather than hidden**, and it is the honest statement\nof how much this instrument does not know: 28% on the aligned model's benign answers. Any\nde-alignment figure built on this oracle has that as its resolution floor.\n\n## Conventions and thresholds\n\nDeclared because they are choices, not facts:\n\n- **amplifying** = ratio ≥ 2;\n- **catastrophic** = ratio ≥ 2¹⁶ or non-finite outcome;\n- values whose original is non-finite are excluded from all statistics (none exist in the\n  artefacts measured);\n- where the original value is zero the ratio is defined as infinite, so the flip counts as\n  catastrophic.\n\nChanging these thresholds changes the last three columns of the E1/E3 files and nothing\nelse: the first six are independent of the convention.\n\n## How to read it — the warning that matters\n\nThe E1 and E3 columns describe the **arithmetic fragility of an isolated value**: what\nhappens to the number. They say nothing about how much the **model** degrades. A weight\ndriven to a huge value inside a rarely used tensor may not change a comma of the output —\nwhich is exactly why `e2-degradation.csv` exists.\n\nThis applies with particular force to the E3 comparison, in two ways.\n\n**The ratio depends on what is held equal, and `e3-normalisation.csv` gives all three.**\nAn earlier version of this description said the quantised format loses 2.807 times more\nweights *per random fault*, which was the wrong condition for that number: 2.807× is the\ncost of a flip that landed **inside** the file. The quantised file is 0.4913 times the\nsize, so at equal physical exposure — same DRAM, same hours, same fault rate per bit — it\nintercepts about half the faults and the ratio is **1.379×**; normalised on each format's\nown parameters it is **1.081×**. Every one of the three is above 1, so the conclusion that\nquantisation concentrates rather than protects survives all of them; the magnitude does\nnot. A field fault rate, quoted per bit per hour, has to be crossed with the 1.379×.\n\n**And none of the three is a measure of damage.** They count *corrupted weights*, not\n*lost quality*, and they treat a 2¹²⁸ multiplier and a 2¹⁶ multiplier as equivalent\nbecause both cross the catastrophic threshold — while the gap between those two\nmultipliers is 2¹¹² ≈ 5.2 × 10³³. Anyone using this dataset to estimate behavioural impact\nis extrapolating beyond what the data measures.\n\n## How you can help\n\nTwo gaps in this research are the kind a community can close and one author cannot.\n\n**1. Does a run reproduce on a different accelerator?** Two sessions produced\nbyte-identical answers to all 600 probes — and both drew two Tesla T4s. Since the cause of\ndivergence is the order of floating-point reductions, the expectation is that a different\ncard does *not* reproduce, but expectation is not measurement. *Copy & Edit* the\n[oracle-validation notebook](https://www.kaggle.com/code/seb001010/bit-flip-e5-oracle-validation),\nrun it, and post the digest block its last cell prints. **A mismatch is the more\ninteresting result** — please post it either way.\n\n**2. Has the classifier ever agreed with a human?** No Cohen's κ has been measured. The\nprotocol for contributing labels without any generated text changing hands is in\n[CONTRIBUTING.md](https://github.com/rootedlab-code/bit-flip-llm-research/blob/main/CONTRIBUTING.md).\n\n## Reproduction\n\n```sh\nuv sync\nuv run pytest\nuv sync --extra download\nuv run python -m bitflip.fetch          # ~2.4 GB, pinned revisions, frozen read-only\nuv run python experiments/e1_bit_hierarchy.py\nuv run python experiments/e3_gguf_surface.py\n```\n\nThe versioned CSVs must be identical to the regenerated ones. The two notebooks import the\nsame `bitflip` package from the public repository, so a notebook run and a local run\nexecute the same code.\n\n## What this dataset does not contain, and will not\n\n- no model weights, original or modified;\n- no text generated by a model under test, in any form;\n- no reusable attack procedure: no optimal bit addresses for a specific model, no DRAM\n  hammering parameters.\n\nThe project measures the *payload* — what the flipped bit does — not the *delivery vector*.\n\n## Licence\n\nMIT. The model weights remain subject to their upstream licences and are not\nredistributed: they are downloaded at the revisions pinned in the repository.\n",
+  "keywords": [
+    "computer science",
+    "artificial intelligence",
+    "nlp",
+    "deep learning"
   ]
 }
