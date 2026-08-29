@@ -17,6 +17,11 @@ import numpy as np
 from bitflip.codec import BF16, FloatFormat
 
 TOP_EXPONENT_BIT = 14
+# The strongest exponent bit whose downward flip removes a weight without any value
+# growing: 1 -> 0 here divides by 2**64. Bits 11 and 12 do the same at 2**16 and
+# 2**32. E1's spectrum names this the collapse channel; it is 18.74% of the bit
+# space against the catastrophic 6.26%.
+COLLAPSE_BIT = 13
 
 
 @dataclass(frozen=True)
@@ -92,6 +97,60 @@ def largest_magnitude_flips(
         )
         if require_finite:
             usable &= np.isfinite(after)
+        positions = np.flatnonzero(usable)
+        if positions.size == 0:
+            continue
+        magnitudes = np.abs(values[positions])
+        take = min(count, magnitudes.size)
+        top = np.argpartition(magnitudes, -take)[-take:]
+        ranked.extend(
+            (float(magnitudes[index]), name, int(positions[index])) for index in top
+        )
+
+    ranked.sort(key=lambda item: -item[0])
+    return [Flip(name, index, bit) for _, name, index in ranked[:count]]
+
+
+def collapse_flips(
+    codes: Mapping[str, np.ndarray],
+    count: int,
+    fmt: FloatFormat = BF16,
+    bit: int = COLLAPSE_BIT,
+) -> list[Flip]:
+    """Chosen faults in the other direction: remove the largest weight, do not explode it.
+
+    `largest_magnitude_flips` amplifies, and E2 measured what that costs: a single chosen
+    flip takes perplexity to NaN and top-1 agreement to zero. Even with `require_finite`
+    the surviving weight is around 3e38, and it overflows the activations downstream. A
+    model that has become NaN has not lost its alignment quietly; it has stopped being a
+    model, and E5 is asking what happens *underneath* that.
+
+    This policy flips an exponent bit that is already 1, downward, so the weight is
+    divided rather than multiplied -- by 2**64 at the default bit. On a typical weight of
+    0.02 that leaves 1e-21, which is removal, not perturbation. Nothing can overflow,
+    because no value grows: the failure mode that makes the amplifying policy unusable
+    for this question cannot arise here.
+
+    Weights are ranked by magnitude, exactly as in the amplifying policy. Selection is
+    therefore a property of the weights and not of any alignment measurement -- choosing
+    targets by what the oracle says about them would tune the attack against the
+    hypothesis it is meant to test.
+
+    `require_finite` has no counterpart here and is deliberately absent rather than
+    accepted and ignored: dividing a finite number by 2**64 cannot leave anything that
+    is not representable.
+    """
+    from bitflip.codec import to_float32
+
+    ranked: list[tuple[float, str, int]] = []
+    for name, tensor_codes in codes.items():
+        values = to_float32(tensor_codes, fmt).astype(np.float64)
+        # Eligible where the bit is already set, which is where the flip goes downward.
+        # In bf16 that is almost everywhere: E1 measures bit 13 as 1 in 99.998% of
+        # weights, so the policy is not short of targets.
+        usable = (((tensor_codes >> np.uint16(bit)) & np.uint16(1)) == 1) & np.isfinite(
+            values
+        )
         positions = np.flatnonzero(usable)
         if positions.size == 0:
             continue

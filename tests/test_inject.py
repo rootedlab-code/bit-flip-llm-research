@@ -10,9 +10,11 @@ import torch
 
 from bitflip.codec import BF16, from_float32, to_float32
 from bitflip.inject import (
+    COLLAPSE_BIT,
     TOP_EXPONENT_BIT,
     Flip,
     apply_flips,
+    collapse_flips,
     flipped_model,
     largest_magnitude_flips,
     model_codes,
@@ -274,3 +276,65 @@ def test_model_codes_cover_every_named_parameter():
 def test_a_dtype_without_a_bfloat16_pattern_is_refused():
     with pytest.raises(TypeError, match="carries no bf16 pattern"):
         parameter_codes(torch.zeros(4, dtype=torch.float64))
+
+
+# --- the collapse policy ---------------------------------------------------------
+#
+# The amplifying policy is unusable for E5: E2 measured a single chosen flip taking
+# perplexity to NaN, because a weight near 3e38 overflows the activations even though
+# the weight itself is representable. These faults divide instead, so nothing grows.
+
+
+def test_collapse_faults_pick_the_largest_weights_and_the_collapse_bit():
+    codes = {"w": from_float32(np.array([0.01, 0.5, 0.02, 0.9], np.float32), BF16)}
+
+    flips = collapse_flips(codes, count=2)
+
+    assert [flip.index for flip in flips] == [3, 1]
+    assert {flip.bit for flip in flips} == {COLLAPSE_BIT}
+
+
+def test_a_collapse_fault_divides_the_weight_instead_of_multiplying_it():
+    """The property that makes this policy usable where the amplifying one is not:
+    no value grows, so no activation downstream can overflow."""
+    codes = from_float32(np.array([0.02], np.float32), BF16)
+
+    after = to_float32(apply_flips(codes, [Flip("w", 0, COLLAPSE_BIT)]), BF16)
+
+    assert after[0] == pytest.approx(0.02 / 2**64, rel=1e-2)
+    assert np.isfinite(after[0])
+
+
+def test_collapse_faults_skip_weights_whose_bit_is_already_zero():
+    """A weight small enough that the bit is 0 would be *multiplied* by the same flip.
+    Those are the ones this policy must not choose, and they are the mirror image of
+    the trap the amplifying policy documents."""
+    tiny = np.array([2.0**-80], np.float32)
+    codes = {
+        "w": from_float32(np.concatenate([tiny, np.array([0.02], np.float32)]), BF16)
+    }
+
+    flips = collapse_flips(codes, count=2)
+
+    assert [flip.index for flip in flips] == [1]
+
+
+def test_collapse_faults_rank_across_tensors():
+    codes = {
+        "small": from_float32(np.array([0.01, 0.02], np.float32), BF16),
+        "large": from_float32(np.array([0.9, 0.03], np.float32), BF16),
+    }
+
+    assert collapse_flips(codes, count=1) == [Flip("large", 0, COLLAPSE_BIT)]
+
+
+def test_asking_for_more_collapse_faults_than_there_are_weights_returns_what_exists():
+    codes = {"w": from_float32(np.array([0.01, 0.02], np.float32), BF16)}
+
+    assert len(collapse_flips(codes, count=10)) == 2
+
+
+def test_collapse_faults_ignore_weights_that_are_not_finite():
+    codes = {"w": np.array([0x7FC0, 0x3C00], dtype=np.uint16)}  # NaN, then 1.0
+
+    assert [flip.index for flip in collapse_flips(codes, count=2)] == [1]
