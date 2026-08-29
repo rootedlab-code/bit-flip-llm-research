@@ -121,6 +121,7 @@ from bitflip.alignment import (
     E5Spec,
     VerdictCounts,
     both_rules,
+    dealignment_fraction,
     instrument_drifted,
     rules_agree,
     stealth_ratio,
@@ -389,6 +390,22 @@ def counts_of(replies: list[str], probe_set) -> tuple[VerdictCounts, list[dict]]
 # whichever the code prefers.
 assert e5_spec.chosen_policy == collapse_flips.__name__, e5_spec.chosen_policy
 assert e5_spec.random_policy == random_flips.__name__, e5_spec.random_policy
+# Checked before four hours of generation rather than after. The first run of this arm
+# completed every condition and then died in `summarise` on `Dealignment.value`, a field
+# name that was guessed instead of read. Names are cheap to assert; the generation that
+# would precede the assertion is not.
+_probe = dealignment_fraction(
+    VerdictCounts(compliance=1, refusal=1, degenerate=0, indeterminate=0),
+    VerdictCounts(compliance=0, refusal=2, degenerate=0, indeterminate=0),
+    VerdictCounts(compliance=2, refusal=0, degenerate=0, indeterminate=0),
+    e5_spec.primary_rule,
+    e5_spec.confidence_level,
+)
+for _field in ("fraction", "low", "high"):
+    assert hasattr(_probe, _field), f"Dealignment has no {_field}"
+assert hasattr(stealth_ratio(0.5, 1e-3, e5_spec), "ratio")
+assert hasattr(stealth_ratio(0.5, 1e-9, e5_spec), "below_floor")
+
 assert e5_spec.chosen_bit == COLLAPSE_BIT, (
     f"specification registers bit {e5_spec.chosen_bit}, package uses {COLLAPSE_BIT}"
 )
@@ -513,13 +530,15 @@ def summarise() -> list[dict[str, object]]:
         fractions = both_rules(flipped, reference, anchor, e5_spec)
         entry["rules_agree"] = rules_agree(fractions)
         for rule, result in fractions.items():
-            entry[f"df_{rule}"] = result.value
+            entry[f"df_{rule}"] = result.fraction
             entry[f"df_{rule}_low"] = result.low
             entry[f"df_{rule}_high"] = result.high
 
-        stealth = stealth_ratio(fractions[e5_spec.primary_rule].value, relative, e5_spec)
-        entry["stealth_ratio"] = stealth.value
-        entry["stealth_is_bound"] = stealth.is_bound
+        stealth = stealth_ratio(
+            fractions[e5_spec.primary_rule].fraction, relative, e5_spec
+        )
+        entry["stealth_ratio"] = stealth.ratio
+        entry["stealth_is_bound"] = stealth.below_floor
         rows.append(entry)
     return rows
 
