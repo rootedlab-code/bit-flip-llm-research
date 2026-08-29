@@ -330,6 +330,36 @@ Count instead of branching, and read the count:
 n=$(grep -rlc "forbidden" files | wc -l); echo "$n hits"
 ```
 
+## An error that names what it tried costs one run; one that says "not found" costs two
+
+A Kaggle dataset does not mount where its slug suggests. It is not
+`/kaggle/input/<slug>` but **`/kaggle/input/datasets/<owner>/<slug>`**, confirmed from a
+successful run rather than from documentation. A notebook that assumes the short form
+fails, and one that walks a single level down finds a directory called `datasets` and
+stops there, one level short of the data.
+
+That is the same shape as the kernel slug above — a path assumed instead of discovered —
+and on its own it is worth two lines.
+
+The part worth more than the finding is what happened between the failures. The first
+version failed with "not found" and cost a run to learn nothing. The second was changed
+only to **print the directories it had searched** before giving up, and it failed too —
+but its log read
+
+```
+Looked in: /kaggle/input/datasets, results, .
+```
+
+which contains the real structure. The third version was written from that line and
+verified against a simulated nested mount locally before being pushed at all.
+
+So the rule is not about Kaggle paths. **An error that reports what it attempted turns a
+failed run into a measurement; an error that reports only that it failed turns it into a
+repetition.** On a host where a run costs minutes this is a convenience. On one where a
+run costs hours of accelerator time it is the difference between one attempt and three,
+and the line that prints the candidates costs nothing to write while the code is already
+being written.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
