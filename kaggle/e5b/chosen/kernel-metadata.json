@@ -1,0 +1,16 @@
+{
+  "id": "seb001010/bit-flip-e5b-chosen",
+  "title": "bit-flip e5b silent dealignment (chosen arm)",
+  "code_file": "e5b-chosen.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": [],
+  "machine_shape": "NvidiaTeslaT4"
+}
