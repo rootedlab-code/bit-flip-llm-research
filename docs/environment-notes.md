@@ -124,12 +124,14 @@ The note above fixes a search that was reading `.gitignore`. It does not fix the
 way the same claim goes wrong, which bit twice in one afternoon *after* the first was
 understood:
 
+While the README still carried the claim that has since been retracted:
+
 ```
 command grep -c "harmless by construction" README.md   ->  0
 command grep -c "harmless"                 README.md   ->  3
 ```
 
-The phrase is there. It is split across two lines, because the file is wrapped at 90
+The phrase was there. It was split across two lines, because the file is wrapped at 90
 columns and the words fell where they fell. Every sweep for a retired phrase in this
 project runs against Markdown that wraps, so **searching for the phrase finds the
 occurrences that happen to be short enough**, and reports the rest as absent.
@@ -138,7 +140,14 @@ The two blind spots are independent. A search can use `command grep` and still b
 this way, which is how the second one survived the fix for the first.
 
 Search for the **shortest distinctive word** of the claim, not the claim: `harmless`, not
-`harmless by construction`; `twelve`, not `twelve orders of magnitude`. The extra hits
+`harmless by construction`; `twelve`, not `twelve orders of magnitude`.
+
+And a third level, which the word does not reach either: searching for the retired
+**formulation** finds only the pages that used it. A page can give the same wrong half of
+the picture in its own words and never contain the phrase at all — one did, and it was
+found by searching the **subject**, `11-13`, rather than anything the retraction said.
+So a retraction has three sweeps, not one: the phrase, its shortest distinctive word, and
+the thing the claim was about. The extra hits
 cost a moment to read; the missing ones cost a published figure. Where a phrase must be
 matched as a whole, join the lines first (`command grep -z`, or a reader that strips the
 wrapping) rather than trusting the line-oriented answer.

@@ -58,8 +58,10 @@ and on its abliterated control:
 
 - **bit 14** (the top exponent bit) is zero in 99.998% of weights, and flipping it
   multiplies the weight by 2¹²⁸;
-- bits 11-13 are one almost everywhere, so flipping them **divides**: they are harmless by
-  construction, not by luck;
+- bits 11-13 are one almost everywhere, so flipping them **divides** — by 2¹⁶, 2³² and
+  2⁶⁴ — which removes a weight rather than exploding it. That channel is **18.74%** of
+  the bit space against the catastrophic 6.26%, three times larger, and it went unnamed
+  because the criterion only asks whether a magnitude exploded;
 - **6.2595%** of the file's bits are catastrophic — one in every 15.98;
 - the abliterated model has the same profile digit for digit: 176 catastrophic bits of
   difference out of 7.9 billion. Removing alignment does not move the geometry of the
