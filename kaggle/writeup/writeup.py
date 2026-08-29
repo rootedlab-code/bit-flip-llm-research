@@ -26,13 +26,24 @@ import pathlib
 
 import pandas as pd
 
-CANDIDATES = [pathlib.Path("/kaggle/input/bit-flip-results"), pathlib.Path("results")]
-DATA = next((p for p in CANDIDATES if p.exists()), None)
+# The directory is discovered by looking for a file that must be in it, rather than by
+# assuming the mount path. A dataset does not always land under the name you expect, and
+# a path assumed is a path that fails on somebody else's copy.
+ANCHOR = "e1-summary.csv"
+SEARCH = [*pathlib.Path("/kaggle/input").glob("*"), pathlib.Path("results"), pathlib.Path(".")]
+DATA = next((p for p in SEARCH if (p / ANCHOR).exists()), None)
 if DATA is None:
-    raise SystemExit("attach the bit-flip results dataset, or run from the repository root")
+    looked = ", ".join(str(p) for p in SEARCH) or "nowhere"
+    raise SystemExit(f"{ANCHOR} not found. Looked in: {looked}")
 
-read = lambda name: pd.read_csv(DATA / name)
-load = lambda name: json.loads((DATA / name).read_text())
+
+def read(name: str) -> pd.DataFrame:
+    return pd.read_csv(DATA / name)
+
+
+def load(name: str) -> object:
+    return json.loads((DATA / name).read_text())
+
 
 print(f"reading from {DATA}")
 print(f"{len(list(DATA.glob('*')))} files")
