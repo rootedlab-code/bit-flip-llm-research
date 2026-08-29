@@ -360,6 +360,48 @@ run costs hours of accelerator time it is the difference between one attempt and
 and the line that prints the candidates costs nothing to write while the code is already
 being written.
 
+## Kaggle drops a licence it will not accept, without saying so
+
+`dataset-metadata.json` declares `"licenses": [{"name": "MIT"}]`. Kaggle does not accept
+MIT for datasets, and does not refuse the push either: it accepts it, discards the field
+and returns success. Read back from the server afterwards:
+
+```
+repo    licenses: [{"name": "MIT"}]
+server  licenses: [{"name": "unknown"}]
+```
+
+Same family as `machine_shape` and the kernel slug — a field accepted and quietly
+ignored — and worse than either, because the discarded field is a legal one. A reader of
+the repository concludes the data are MIT; a reader of the published page sees *unknown*,
+which in Kaggle's convention is not "not yet decided" but **no permission granted**. The
+two public venues do not disagree about a number: they disagree about what anyone may
+lawfully do with the files.
+
+Read the metadata back from the server after any push that sets a field the CLI does not
+validate. `kaggle datasets metadata -p <dir> <slug>` returns what was actually stored.
+
+## Concluding "it is not there" after looking in the wrong place
+
+The mirror of every entry above. Those are tools reporting success while failing; this is
+a reader reporting absence while looking somewhere else, and it costs the same hours.
+
+Two instances from one afternoon:
+
+- `kaggle datasets metadata` was read at the top level of its JSON and reported as not
+  exposing the description or the licence. It exposes both — nested under an `info` key.
+  The conclusion "the CLI cannot show this" went into a message to the user and left two
+  answerable questions open for an hour.
+- `results/e3-normalisation.csv` was read through `column -s,`, which does not understand
+  CSV quoting, and looked malformed: fields spilling into the next column. It is
+  perfectly well formed. The defect was in the viewer, and was about to be reported as a
+  defect in the data.
+
+Both were caught by re-reading with the right tool before the report went out — a parser
+instead of a column formatter, the nested key instead of the top level. Neither was
+caught by care. **Before reporting that something is absent or broken, establish that the
+instrument would have shown it if it were present.**
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
