@@ -303,6 +303,33 @@ The bundle is a single file that `git clone` reads back into a full repository, 
 by round trip. Confirming `git status` afterwards is not ceremony: it is the only thing
 that distinguishes the fixed case from the silent failure above.
 
+## A pipe hides the exit status of the check, including the check for this
+
+The OPSEC sweep before a publication is written as "search for the forbidden thing, and
+say so if it is absent". Written with a pipe it cannot say so:
+
+```sh
+grep -rl "forbidden" files | head -3 || echo clean   # -> prints nothing, exit 0
+grep -rl "forbidden" files      || echo clean        # -> prints "clean", branch fires
+```
+
+A shell pipeline exits with the status of its **last** command, and `head` succeeds
+whether or not it was given anything. So the `||` branch never runs, and an empty output
+means either "nothing forbidden is present" or "the search never worked" — the two
+outcomes a pre-publication check exists to separate.
+
+The reason it belongs in this file rather than in a style guide: it is the same shape as
+the three entries above, and it happened **inside the check written to prevent that
+shape**. A sweep that reports nothing is indistinguishable from a sweep that did nothing,
+and adding `| head` to keep the output short is exactly what one does when the search is
+expected to be long.
+
+Count instead of branching, and read the count:
+
+```sh
+n=$(grep -rlc "forbidden" files | wc -l); echo "$n hits"
+```
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
