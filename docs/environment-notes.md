@@ -263,23 +263,45 @@ revision, dataset revision and corpus pin without generating anything costs minu
 moves configuration failures ahead of the expense. It is worth doing in any notebook that
 downloads before it computes.
 
-## A nested repository inside an ignored directory adds a pointer, not the files
+## A nested repository swallows a file-by-file add without a word
 
 `docs/public/` is held out of the project's history on purpose and now carries a
 repository of its own, with no remote, so that edits there can be diffed and reverted
 without any path to publication. That solves the problem it was made for.
 
-It leaves a trap for whoever later decides the directory should be tracked after all.
-Removing the line from `.gitignore` and running `git add docs/public/` does **not** add
-the files. Git sees the nested `.git`, records a **gitlink** — a single commit SHA
-standing for the whole directory — and reports success. The parent repository then names
-a commit in a repository that has no remote, so a clone can never resolve it: the
-directory arrives empty and the pointer is unfollowable.
+It leaves a trap for whoever later decides some of those files should be tracked after
+all, and the dangerous half is not the obvious one. Measured on a throwaway pair of
+repositories rather than reasoned about:
 
-The failure is the family this file collects. The command succeeds, the diff shows one
-line changed, and what was meant to be published is absent from the published thing. Undo
-the nesting first (`rm -rf docs/public/.git`) if that directory is ever meant to be
-tracked by the parent, and only then add it.
+| command | output | what is staged |
+|---|---|---|
+| `git add sub/` | eleven lines of warning, naming `git rm --cached sub` | mode `160000`: a **gitlink** |
+| `git add sub/paper.md` | **nothing at all**, exit 0 | **nothing at all** |
+
+The directory form is loud. It says what it is doing and how to undo it, and the gitlink
+it stages would at least show up as a change. The **file** form is the silent one: no
+output, exit status 0, and the file it was asked to add stays untracked. Nothing in the
+terminal distinguishes it from having worked.
+
+That is the row that belongs in this file, and it is worse than it looks, because the
+file-by-file add is exactly what a careful person would use. Releasing selected documents
+from a held-back directory means naming them one at a time, which is precisely the form
+that fails without saying so.
+
+**The remedy has an order, and the obvious first step is wrong.** De-nesting first
+(`rm -rf docs/public/.git`) destroys the only history that directory has ever had — the
+thing it was created to protect. Save it first:
+
+```sh
+git -C docs/public bundle create /path/to/paper-history.bundle --all
+rm -rf docs/public/.git
+git add docs/public/<file>            # now stages the file
+git status --short                    # two file rows, not one directory row
+```
+
+The bundle is a single file that `git clone` reads back into a full repository, verified
+by round trip. Confirming `git status` afterwards is not ceremony: it is the only thing
+that distinguishes the fixed case from the silent failure above.
 
 ## Dependency floors are a portability defect, not caution
 
