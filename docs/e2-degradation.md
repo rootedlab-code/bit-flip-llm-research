@@ -58,7 +58,16 @@ leverage per flip = 1 / 0.06259549 = 15.98x
 ```
 
 which is exactly the "one catastrophic bit in every 15.98" that E1 produced by counting
-patterns in a file. Two methods, no shared assumption, same figure.
+patterns in a file — and that is agreement, **not independent confirmation**. 15.98 is the
+reciprocal of E1's own counted fraction, so the two cannot disagree: the same number stands
+on both sides of the comparison. An earlier version of this page called it "two methods, no
+shared assumption, same figure", which was wrong in the middle clause.
+
+What E2 contributes is the **numerator** — that a chosen flip is catastrophic at all — and
+it contributes it on four configurations. Four successes in four trials put a one-sided 95%
+lower bound of **0.47** on that certainty, so the leverage this measurement supports is **at
+least 7.6x**, reaching 15.98x only if a chosen flip never misses. E2 is consistent with E1's
+static prediction, with a numerator estimated on four configurations.
 
 The static prediction also anticipates the dose–response curve without being fitted to
 it. P(at least one catastrophic bit in *n* random flips) = 1 − (1 − 0.0626)ⁿ:
@@ -70,7 +79,8 @@ it. P(at least one catastrophic bit in *n* random flips) = 1 − (1 − 0.0626)�
 | 100 | 99.84% | 5/5 |
 | 1,000 | 100.00% | 5/5 |
 
-And in operational terms — how many faults nobody chose are worth one fault somebody did:
+And a different question, which the leverage does not answer: how many unchosen faults it
+takes before destruction becomes likely, at a chosen level of likely.
 
 | to destroy with probability | random flips needed |
 |---|---|
@@ -79,7 +89,13 @@ And in operational terms — how many faults nobody chose are worth one fault so
 | 99% | 72 |
 | 99.9% | 107 |
 
-**Choosing the address is worth roughly a hundred cosmic rays.**
+**Two quantities live in those two tables, and merging them is how this page went wrong.**
+The leverage of choosing is **15.98x per flip**, and it is the first table's business. The
+second answers something else: how many unchosen faults are needed to reach a given
+*probability* of destruction — **11 at even odds, 107 at 99.9%**. An earlier version
+collapsed the two into "roughly a hundred cosmic rays", which took the last row of the
+second table and reported it as the leverage. It is neither: the band is 11-107 and it
+depends entirely on the confidence being asked for.
 
 ## Two traps found while measuring, both worth stating
 
