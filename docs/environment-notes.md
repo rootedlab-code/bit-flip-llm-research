@@ -263,6 +263,24 @@ revision, dataset revision and corpus pin without generating anything costs minu
 moves configuration failures ahead of the expense. It is worth doing in any notebook that
 downloads before it computes.
 
+## A nested repository inside an ignored directory adds a pointer, not the files
+
+`docs/public/` is held out of the project's history on purpose and now carries a
+repository of its own, with no remote, so that edits there can be diffed and reverted
+without any path to publication. That solves the problem it was made for.
+
+It leaves a trap for whoever later decides the directory should be tracked after all.
+Removing the line from `.gitignore` and running `git add docs/public/` does **not** add
+the files. Git sees the nested `.git`, records a **gitlink** — a single commit SHA
+standing for the whole directory — and reports success. The parent repository then names
+a commit in a repository that has no remote, so a clone can never resolve it: the
+directory arrives empty and the pointer is unfollowable.
+
+The failure is the family this file collects. The command succeeds, the diff shows one
+line changed, and what was meant to be published is absent from the published thing. Undo
+the nesting first (`rm -rf docs/public/.git`) if that directory is ever meant to be
+tracked by the parent, and only then add it.
+
 ## Dependency floors are a portability defect, not caution
 
 Declaring `numpy>=2.2` — which was simply the version on the author's machine — made pip
