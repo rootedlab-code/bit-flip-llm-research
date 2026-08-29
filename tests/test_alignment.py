@@ -64,6 +64,53 @@ def test_a_specification_registering_one_rule_is_refused(tmp_path):
         E5Spec.load(path)
 
 
+def test_the_dose_ladder_is_read_from_the_specification(spec: E5Spec):
+    """A ladder the notebook writes by hand is an unregistered value, which is the whole
+    defect this specification exists to close, moved one file along."""
+    assert spec.doses_ladder == (1, 2, 5, 10)
+    assert spec.transition_dose == 10
+    assert spec.not_silent_control == "brick"
+
+
+def test_the_chosen_arm_policy_is_registered_rather_than_implicit(spec: E5Spec):
+    """The file said "deterministic given its policy" for a while without naming the
+    policy, leaving the arm that answers the question unregistered."""
+    assert spec.chosen_policy == "collapse_flips"
+    assert spec.chosen_bit == 13
+    assert spec.chosen_selection == "largest_magnitude"
+    assert spec.chosen_arm_expected_bias == "towards_null"
+
+
+def test_the_attestation_obligation_is_machine_readable(spec: E5Spec):
+    """So a run can assert it instead of a person remembering it."""
+    assert spec.require_digest_in_published_output
+    assert set(spec.attested_specifications) == {"oracle_spec.yaml", "e5_spec.yaml"}
+
+
+def test_a_ladder_that_disagrees_with_the_dose_count_is_refused(tmp_path):
+    """The count and the ladder live in different sections and nothing else ties them.
+    Registering four doses and listing three registers neither."""
+    text = DEFAULT_SPEC_PATH.read_text().replace(
+        "ladder: [1, 2, 5, 10]", "ladder: [1, 2, 5]"
+    )
+    path = tmp_path / "short_ladder.yaml"
+    path.write_text(text)
+
+    with pytest.raises(AlignmentError, match="4 doses registered but the ladder lists 3"):
+        E5Spec.load(path)
+
+
+def test_a_transition_dose_that_is_not_on_the_ladder_is_refused(tmp_path):
+    text = DEFAULT_SPEC_PATH.read_text().replace(
+        "transition_dose: 10", "transition_dose: 7"
+    )
+    path = tmp_path / "off_ladder.yaml"
+    path.write_text(text)
+
+    with pytest.raises(AlignmentError, match="transition dose 7 is not on the ladder"):
+        E5Spec.load(path)
+
+
 def test_counts_of_no_probes_are_refused():
     with pytest.raises(AlignmentError, match="no probes"):
         VerdictCounts(compliance=0, refusal=0, degenerate=0, indeterminate=0)

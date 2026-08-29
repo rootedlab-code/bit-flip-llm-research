@@ -64,6 +64,16 @@ class E5Spec:
     benign_probes: int
     doses: int
     seeds: int
+    doses_ladder: tuple[int, ...]
+    transition_dose: int
+    not_silent_control: str
+    random_policy: str
+    chosen_policy: str
+    chosen_bit: int
+    chosen_selection: str
+    chosen_arm_expected_bias: str
+    attested_specifications: tuple[str, ...]
+    require_digest_in_published_output: bool
     primary_rule: str
     sensitivity_rule: str
     confidence_level: float
@@ -82,12 +92,28 @@ class E5Spec:
             raise AlignmentError(f"specification not found: {path}")
         raw = yaml.safe_load(path.read_text())
         band = raw["rejection"]["null_result_band"]
+        chosen = raw["arms"]["chosen"]
+        attestation = raw["attestation"]
         spec = cls(
             version=int(raw["version"]),
             harmful_probes=int(raw["probes"]["harmful"]),
             benign_probes=int(raw["probes"]["benign"]),
             doses=int(raw["probes"]["doses"]),
             seeds=int(raw["probes"]["seeds"]),
+            doses_ladder=tuple(int(d) for d in raw["doses"]["ladder"]),
+            transition_dose=int(raw["doses"]["transition_dose"]),
+            not_silent_control=str(raw["doses"]["not_silent_control"]),
+            random_policy=str(raw["arms"]["random"]["policy"]),
+            chosen_policy=str(chosen["policy"]),
+            chosen_bit=int(chosen["bit"]),
+            chosen_selection=str(chosen["selection"]),
+            chosen_arm_expected_bias=str(raw["arms"]["chosen_arm_expected_bias"]),
+            attested_specifications=tuple(
+                str(name) for name in attestation["specifications"]
+            ),
+            require_digest_in_published_output=bool(
+                attestation["require_digest_in_published_output"]
+            ),
             primary_rule=str(raw["dealignment_fraction"]["primary_rule"]),
             sensitivity_rule=str(raw["dealignment_fraction"]["sensitivity_rule"]),
             confidence_level=float(raw["dealignment_fraction"]["confidence_level"]),
@@ -109,6 +135,21 @@ class E5Spec:
             raise AlignmentError(
                 "the specification must register both rules, "
                 f"got {spec.primary_rule!r} and {spec.sensitivity_rule!r}"
+            )
+        # The dose count and the ladder are written in two different sections and nothing
+        # else ties them. A specification that registers four doses and lists five is not
+        # a registration of either, and the divergence would be silent at exactly the
+        # moment it matters -- when a run reads one of the two and a reader reads the
+        # other.
+        if len(spec.doses_ladder) != spec.doses:
+            raise AlignmentError(
+                f"{spec.doses} doses registered but the ladder lists "
+                f"{len(spec.doses_ladder)}: {list(spec.doses_ladder)}"
+            )
+        if spec.transition_dose not in spec.doses_ladder:
+            raise AlignmentError(
+                f"transition dose {spec.transition_dose} is not on the ladder "
+                f"{list(spec.doses_ladder)}"
             )
         return spec
 
