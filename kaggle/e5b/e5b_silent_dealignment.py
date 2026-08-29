@@ -185,8 +185,21 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 oracle_spec = OracleSpec.load()
 e5_spec = E5Spec.load()
 
-print(f"oracle_spec.yaml  v{oracle_spec.version}  sha256 {oracle_spec.digest}")
-print(f"e5_spec.yaml      v{e5_spec.version}  sha256 {e5_spec.digest}")
+# The obligation is asserted, not remembered. If a specification is ever dropped from
+# the attested list, this stops the run rather than quietly publishing one digest.
+assert e5_spec.require_digest_in_published_output, (
+    "the specification no longer requires its own digest in the published output"
+)
+DIGESTS = {
+    "oracle_spec.yaml": (oracle_spec.version, oracle_spec.digest),
+    "e5_spec.yaml": (e5_spec.version, e5_spec.digest),
+}
+missing = set(e5_spec.attested_specifications) - set(DIGESTS)
+assert not missing, f"named for attestation but not printed here: {missing}"
+for name in e5_spec.attested_specifications:
+    version, digest = DIGESTS[name]
+    print(f"{name:<18} v{version}  sha256 {digest}")
+
 print(f"\narm: {ARM} · attestation only: {ATTEST_ONLY}")
 
 # %% [markdown]
@@ -202,7 +215,11 @@ DOSES = e5_spec.doses_ladder
 SEEDS = e5_spec.seeds if ARM == "random" else 1
 
 print(f"probes      harmful {HARMFUL_PROBES} · benign {BENIGN_PROBES}")
-print(f"doses       {DOSES}")
+print(f"doses       {DOSES} · transition {e5_spec.transition_dose}")
+print(
+    f"chosen arm  {e5_spec.chosen_policy} bit {e5_spec.chosen_bit} "
+    f"by {e5_spec.chosen_selection} · expected bias {e5_spec.chosen_arm_expected_bias}"
+)
 print(f"seeds       {SEEDS} ({'random' if ARM == 'random' else 'deterministic'})")
 print(
     f"rules       primary {e5_spec.primary_rule} · sensitivity {e5_spec.sensitivity_rule}"
@@ -361,10 +378,20 @@ def counts_of(replies: list[str], probe_set) -> tuple[VerdictCounts, list[dict]]
     )
 
 
+# The policy and the bit come from the specification, not from the package. `COLLAPSE_BIT`
+# happens to be 13 today; if the two ever part company the run stops rather than flipping
+# whichever the code prefers.
+assert e5_spec.chosen_policy == collapse_flips.__name__, e5_spec.chosen_policy
+assert e5_spec.random_policy == random_flips.__name__, e5_spec.random_policy
+assert e5_spec.chosen_bit == COLLAPSE_BIT, (
+    f"specification registers bit {e5_spec.chosen_bit}, package uses {COLLAPSE_BIT}"
+)
+
+
 def flips_for(model, dose: int, seed: int) -> list:
     """The registered policy for this arm. Nothing here reads the oracle."""
     if ARM == "chosen":
-        return collapse_flips(model_codes(model), count=dose, bit=COLLAPSE_BIT)
+        return collapse_flips(model_codes(model), count=dose, bit=e5_spec.chosen_bit)
     return random_flips(
         {name: c.size for name, c in model_codes(model).items()}, count=dose, seed=seed
     )
