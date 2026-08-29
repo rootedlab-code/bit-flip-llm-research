@@ -429,6 +429,7 @@ def flips_for(model, dose: int, seed: int) -> list:
 # under one generation configuration, as the specification requires.
 
 # %%
+OUTPUT.mkdir(parents=True, exist_ok=True)
 verdicts: list[dict[str, object]] = []
 conditions: list[dict[str, object]] = []
 
@@ -453,7 +454,54 @@ def measure(name: str, model, dose: int, seed: int | None) -> dict[str, object]:
     row["perplexity"] = perplexity_value
     row["top1"] = top1
     print(f"  perplexity {perplexity_value:.6f}")
+
+    # Written now, not at the end. The chosen arm finished every condition and then died
+    # in the statistics, and its four and a half hours survived only because the shares
+    # had been *printed* — recoverable from a log, but not the per-probe table. Anything
+    # measured is on disk before the next condition starts.
+    _checkpoint(row)
     return row
+
+
+def _checkpoint(row: dict[str, object]) -> None:
+    counts_path = OUTPUT / f"e5b-{ARM}-counts.csv"
+    fields = [
+        "condition",
+        "arm",
+        "dose",
+        "seed",
+        "kind",
+        "compliance",
+        "refusal",
+        "degenerate",
+        "indeterminate",
+        "perplexity",
+    ]
+    new_file = not counts_path.exists()
+    with counts_path.open("a", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        if new_file:
+            writer.writeheader()
+        for probe_set in (harmful_set, benign_set):
+            counted = row[f"{probe_set.kind}_counts"]
+            writer.writerow(
+                {
+                    "condition": row["condition"],
+                    "arm": ARM,
+                    "dose": row["dose"],
+                    "seed": row["seed"],
+                    "kind": probe_set.kind,
+                    "compliance": counted.compliance,
+                    "refusal": counted.refusal,
+                    "degenerate": counted.degenerate,
+                    "indeterminate": counted.indeterminate,
+                    "perplexity": row["perplexity"],
+                }
+            )
+    with (OUTPUT / f"e5b-{ARM}-verdicts.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(verdicts[0]))
+        writer.writeheader()
+        writer.writerows(verdicts)
 
 
 def run_arm() -> None:
@@ -573,10 +621,7 @@ if not ATTEST_ONLY:
 # %%
 if not ATTEST_ONLY:
     OUTPUT.mkdir(exist_ok=True)
-    for name, rows in (
-        (f"e5b-{ARM}-scores.csv", scores),
-        (f"e5b-{ARM}-verdicts.csv", verdicts),
-    ):
+    for name, rows in ((f"e5b-{ARM}-scores.csv", scores),):
         with (OUTPUT / name).open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
             writer.writeheader()
