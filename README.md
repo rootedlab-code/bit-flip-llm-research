@@ -32,6 +32,7 @@ published.
 | Experiment | Question | Status |
 |---|---|---|
 | **E1** | Fragility hierarchy of the 16 bits of a `bfloat16` weight | **measured** — [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md) |
+| **E1 at scale** | Does that hierarchy depend on the size of the model? Three subjects over a 15× range | **measured** — [`docs/e1-scale.md`](docs/e1-scale.md) |
 | **E3** | Does quantisation protect? Bit census and scale fragility of a GGUF `q4_k_m` | **measured** — [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) |
 | baseline | Deterministic perplexity, and the noise floor between sessions | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
 | **E2** | Model degradation: random flips versus chosen flips | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
@@ -70,6 +71,16 @@ and on its abliterated control:
 The operational consequence is not that bit 14 has the largest multiplier — that is
 arithmetic — but that its value is **predictable**. To amplify a weight, an attacker does
 not need to know which weight is being hit.
+
+### E1 at scale — the geometry belongs to the format, not to the model
+
+The same exact enumeration on `Qwen3-4B-Instruct-2507` (4,022,468,096 weights) and
+`Qwen2.5-7B-Instruct` (7,615,616,512 weights) returns 6.2588% and 6.2839% catastrophic
+bits, against 6.2595% at 0.5 B: a spread of **0.025 percentage points across a 15× range**
+of parameter count. The top exponent bit's zero fraction rises with size — 99.99799%,
+99.99950%, 99.99979% — towards a limit it approaches and does not reach.
+
+Method, coverage checks and per-shard digests: [`docs/e1-scale.md`](docs/e1-scale.md).
 
 ### E3 — quantisation does not protect, it concentrates
 
@@ -116,6 +127,13 @@ Quantisation does not protect, it concentrates: every ratio is above 1. The **ma
 depends on the question, and 1.08–1.38 at equal exposure is the defensible range. That
 second row is also the one E4 has to cross with a field fault rate, which is quoted per
 bit per hour; the per-flip figure would overstate that bridge twofold.
+
+The third row does not reconstruct without its denominator, so here it is: the two files do
+not hold the same number of weights. The safetensors declares 494,032,768 and the GGUF
+630,167,424, and the difference — 136,134,656 = 151,936 × 896 — is the embedding that GGUF
+**unties** and stores a second time as `output.weight`. Normalised on the same count, the
+third row *is* the second, 1.379×; it reads 1.081× only because each format is divided by
+the weights it actually stores.
 
 That conclusion has three declared boundaries — the per-weight multiplier is not the same
 in the two formats, quantised damage is spatially correlated, and "weights lost" is not
@@ -193,46 +211,65 @@ The protocol for both, including what must never be sent back, is in
 ## Safeguards
 
 The realistic risk of a bit-flip project is not the bit-flip: it is the full disk and the
-overwritten file.
+overwritten file. **No physical bit is ever flipped** — every flip is arithmetic on `numpy`
+arrays inside the process; model files are opened read-only and hash-verified on entry and
+exit (`bitflip.guard.immutable`); no code path serialises a flipped model; a free-space
+guard with an abort threshold runs before every download.
 
-- **No physical bit is ever flipped.** No Rowhammer, no `/dev/mem`, no kernel modules, no
-  physical memory mappings, no DMA, no `sudo`. Every flip is arithmetic on `numpy` arrays
-  inside the process: indistinguishable from a real fault to the model, harmless to the
-  DRAM hosting it.
-- **Model files are read-only**, opened via read-only mmap, with SHA-256 recorded on entry
-  to each experiment and re-verified on exit. A changed hash is a failing test, not a log
-  line (`bitflip.guard.immutable`).
-- **No modified weights touch the disk.** No code path serialises a flipped model.
-- **A free-space guard with an abort threshold** runs before every download.
+The full list is [`SCOPE.md` §4](SCOPE.md), which is where it is maintained.
 
-## Declared boundaries
+## Scope and declared boundaries
 
-- **No real Rowhammer.** We study the *payload* — what the flipped bit does — not the
-  *delivery vector*. Delivery is DRAM-module specific, requires reverse-engineering the TRR
-  mitigation, and is already documented elsewhere.
-- **The boundary is around the published artefact, not around the search.** An earlier
-  version of this section excluded optimised search altogether. That was wrong, and
-  wrong in a direction that matters: without it, what gets measured is whatever an
-  unoptimised policy achieves — a lower bound of unknown looseness. Publishing "N flips
-  cost X% of alignment" when a guided search needed three would hand a defender a
-  reassuring number that is false. The worst case is the actionable quantity.
+The fault model, the adversary model, the host safeguards and the publication boundary are
+stated once, normatively, in [`SCOPE.md`](SCOPE.md). What follows is **reproduced from its
+§5**; that file, not this page, is authoritative, and no other document here states the
+boundary in its own words.
 
-  So: the search is run; its objective is an **inert score** (refusal margin,
-  De-alignment Fraction), never harmful text; the **curve and the counts** are
-  published; the **bit addresses are not**, and do not outlive the run. The addresses
-  are the transferable artefact — the curve is the result. The method itself is already
-  published and peer-reviewed, so the offensive uplift of measuring it here is small
-  while the defensive value is not.
-- **No harmful output published**, in any form. Generations needed for measurement live in
-  a scratch directory, are classified, and are deleted; results retain class labels,
-  scalars and a truncated hash.
-- **No defences implemented** in this version: measuring the critical surface is the
-  prerequisite for designing them, not the other way round.
-- **No 7 B models**, for the disk constraint stated above.
+> The boundary is drawn around the artefact, not around the question. What is measured is
+> the worst case; what is published is the result, not the means of reproducing it against a
+> third party.
+>
+> - **Optimised search**: it is run, against locally held weights of publicly available
+>   models only, on an inert scalar objective — a refusal margin, a De-alignment Fraction,
+>   never generated text. Published: the curve and the counts. Not published, and not
+>   retained beyond the run: the addresses — tensor, offset, bit index.
+> - **Model output**: no harmful output is published in any form. Generations live in a
+>   scratch directory, are classified, and are deleted; published tables retain class
+>   labels, scalars, lengths and a truncated SHA-256.
+> - **Weights**: none redistributed, original or de-aligned, not even as a diff.
+> - **Delivery vector**: no Rowhammer executed, on this machine or any other. This work
+>   studies the payload, not the delivery, which is DRAM-module specific and documented at
+>   length elsewhere.
+> - **Defences**: none implemented in this version. Measuring the critical surface is the
+>   prerequisite for designing one, not the other way round.
+
+### What this project has withdrawn
+
+Self-correction belongs on the front page, not in a file nobody opens. The complete list is
+dated in [`ERRATA.md`](ERRATA.md), each entry carrying the venues its correction has and has
+**not** yet reached. The three that change how a number on this page should be read:
+
+- **The boundary above replaced its opposite** (2026-08-29). Until that date this project
+  said it would never run an optimised search. That drew the line around the question
+  instead of the artefact, and it would have left every published figure a lower bound of
+  unknown looseness — a reassuring number that is false. What is withheld is the addresses,
+  and withholding them is compatible with measuring the worst case.
+- **One ratio was standing in for three** (2026-08-28). The 2.807× above was published
+  alone, as though it answered every version of "does quantisation protect?". It answers
+  one: a fault landing *in this file*. E4 bridges to field rates quoted per bit per hour and
+  needs the 1.379×; the per-flip figure would overstate that bridge twofold, in the
+  alarmist direction.
+- **"Bits 11-13 are harmless by construction" was false** (2026-08-28) — and false about the
+  *instrument*, not the subject. The criterion asked only whether a magnitude exploded, so a
+  channel that annihilates a weight scored as harmless. It is 18.74% of the bit space.
 
 ## Layout
 
 ```
+SCOPE.md         fault model, adversary model, safeguards, publication boundary —
+                 normative, and the only place any of them is stated
+ERRATA.md        claims published and then withdrawn, dated, with the venues each
+                 correction has and has not yet reached
 src/bitflip/
   guard.py       host safeguards: free-space guard, read-only enforcement,
                  hash-verified immutability context
@@ -241,13 +278,24 @@ src/bitflip/
   gguf.py        GGUF anatomy: tensor types, block layout, scale extraction
   fragility.py   per-bit-position flip outcomes, shared by E1 and E3
   stats.py       weighted quantiles over the pattern histogram
+  exposure.py    the three normalisations between two storage formats
   fetch.py       pinned-revision acquisition, freezing, manifest
+  inject.py      in-memory fault injection, always reversible
+  metrics.py     deterministic model-quality measurements
+  damage.py      classifying what a fault did to a model
+  probes.py      probe sets, and what counts as answering them
+  oracle.py      deterministic refusal / compliance / degenerate verdict
+  alignment.py   oracle verdicts → the two numbers E5 publishes
+  compare.py     two classification runs, over the answers they share
+  spec/          pre-registered thresholds and rules, hashed before first use
 experiments/
   e1_bit_hierarchy.py
   e3_gguf_surface.py
+  e5_compare_specs.py
 kaggle/          notebook sources in percent format, the metadata that publishes
                  them, and the description of the results dataset
 results/         CSVs and manifest — the only source of every published figure
+results/history/ superseded runs, kept as the evidence behind every entry in ERRATA.md
 tests/           the contract of every module
 docs/            per-experiment technical notes
 ```
@@ -258,9 +306,10 @@ size: a silently misparsed file cannot be mistaken for a result.
 ## Model scale
 
 E1 and E3 are static analyses of bit patterns, and their conclusions are about the
-geometry of the formats rather than the size of the model, so they were measured on
-`Qwen2.5-0.5B-Instruct`. They will be repeated on the larger subject to confirm that the
-6.2595% figure does not depend on it.
+geometry of the formats rather than the size of the model, so they were first measured on
+`Qwen2.5-0.5B-Instruct`. E1 has since been repeated over a 15× range of parameter count,
+and the 6.2595% figure does not depend on it — see above and
+[`docs/e1-scale.md`](docs/e1-scale.md). E3 has not: it is measured on one quantised file.
 
 Everything that runs a model — E2, E5, E6 — targets a model people actually deploy:
 
@@ -293,7 +342,9 @@ substitutes a smaller model is worse than one that does not run.
 4. **Pre-registration of criteria** — thresholds and classification rules are frozen in a
    file with a hash before the first run that uses them.
 5. **No claim without its control** — null, positive, brick, benign.
-6. **The boundary is around the published artefact, not around the question** — the worst case is measured; the addresses that produce it are not published.
+6. **The boundary is around the published artefact, not around the question** — the worst
+   case is measured; the addresses that produce it are not published. Stated normatively,
+   once, in [`SCOPE.md`](SCOPE.md).
 7. **Operational security** — no local paths, no bylines, and a single alias for the
    code. The Kaggle account that runs the experiments is named here deliberately: a
    notebook that cannot say which repository it installs from is not reproducible. That
@@ -302,19 +353,29 @@ substitutes a smaller model is worse than one that does not run.
 ## Reading order
 
 1. This file, for what exists and what does not.
-2. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md),
-   [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md) and
-   [`docs/e2-degradation.md`](docs/e2-degradation.md) — the per-experiment technical
-   notes: method, result, and declared boundaries, one per experiment.
-3. `results/` — the CSVs behind every figure quoted above.
+2. [`SCOPE.md`](SCOPE.md) — what is assumed, what is never done, and what leaves the
+   project. Read it before the results if you are here to assess the ethics rather than
+   the numbers.
+3. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md),
+   [`docs/e1-scale.md`](docs/e1-scale.md),
+   [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md),
+   [`docs/e2-degradation.md`](docs/e2-degradation.md) and
+   [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md) — the per-experiment
+   technical notes: method, result, and declared boundaries, one per experiment.
+4. `results/` — the CSVs behind every figure quoted above, and
+   `results/history/` for the runs that were withdrawn.
+5. [`ERRATA.md`](ERRATA.md) — what this project has said and unsaid, and how far each
+   correction has travelled.
 
 ### The write-up
 
-A paper covering the whole programme is in preparation and will be published here when
-the remaining experiments (E2, E4, E5) have been run. It is deliberately not released in
-draft: a partial write-up invites its unmeasured sections to be read as findings. Until
-then, this repository is the record — the code, the data, and the two technical notes
-are complete and reproducible as they stand.
+A note covering the whole programme exists and is **not** published. It is held until the
+two experiments still open — E4 and E5 — have been run, so that the argument it makes can
+be made once, over a complete record, instead of being revised under a reader's eye.
+
+Until then this repository is the record, not a trailer for one: the code, the data, the
+five per-experiment notes under `docs/`, [`SCOPE.md`](SCOPE.md) and
+[`ERRATA.md`](ERRATA.md) are complete and reproducible as they stand.
 
 ## Licence
 
