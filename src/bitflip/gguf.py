@@ -240,7 +240,7 @@ class GGUFTensor:
 class _Reader:
     """Sequential reading of GGUF primitive types."""
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: bytes | mmap.mmap) -> None:
         self.data = data
         self.cursor = 0
 
@@ -251,19 +251,31 @@ class _Reader:
         self.cursor += count
         return chunk
 
-    def scalar(self, value_type: ValueType):
+    def scalar(self, value_type: ValueType) -> int | float:
         fmt = SCALAR_FORMATS[value_type]
-        return struct.unpack(fmt, self.take(struct.calcsize(fmt)))[0]
+        value: int | float = struct.unpack(fmt, self.take(struct.calcsize(fmt)))[0]
+        return value
+
+    def integer(self, value_type: ValueType) -> int:
+        """A scalar that the format promises is integral: a count, a length, an offset.
+
+        A float where the layout needs an integer is a parser reading the wrong field,
+        and it stops here rather than when the count is used to size a read.
+        """
+        value = self.scalar(value_type)
+        if not isinstance(value, int):
+            raise GGUFError(f"{value_type.name} read as {type(value).__name__}")
+        return value
 
     def string(self) -> str:
-        return self.take(self.scalar(ValueType.UINT64)).decode("utf-8", "replace")
+        return self.take(self.integer(ValueType.UINT64)).decode("utf-8", "replace")
 
-    def value(self, value_type: ValueType):
+    def value(self, value_type: ValueType) -> object:
         if value_type == ValueType.STRING:
             return self.string()
         if value_type == ValueType.ARRAY:
-            item_type = ValueType(self.scalar(ValueType.UINT32))
-            length = self.scalar(ValueType.UINT64)
+            item_type = ValueType(self.integer(ValueType.UINT32))
+            length = self.integer(ValueType.UINT64)
             return [self.value(item_type) for _ in range(length)]
         return self.scalar(value_type)
 
@@ -289,30 +301,33 @@ class GGUFFile:
         """
         if reader.take(4) != GGUF_MAGIC:
             raise GGUFError(f"{self.path}: GGUF magic missing")
-        self.version = reader.scalar(ValueType.UINT32)
-        tensor_count = reader.scalar(ValueType.UINT64)
-        metadata_count = reader.scalar(ValueType.UINT64)
+        self.version = reader.integer(ValueType.UINT32)
+        tensor_count = reader.integer(ValueType.UINT64)
+        metadata_count = reader.integer(ValueType.UINT64)
 
-        self.metadata = {}
+        self.metadata: dict[str, object] = {}
         for _ in range(metadata_count):
             key = reader.string()
-            self.metadata[key] = reader.value(ValueType(reader.scalar(ValueType.UINT32)))
+            self.metadata[key] = reader.value(ValueType(reader.integer(ValueType.UINT32)))
 
-        self.tensors = []
+        self.tensors: list[GGUFTensor] = []
         for _ in range(tensor_count):
             name = reader.string()
-            dimensions = reader.scalar(ValueType.UINT32)
-            shape = tuple(reader.scalar(ValueType.UINT64) for _ in range(dimensions))
+            dimensions = reader.integer(ValueType.UINT32)
+            shape = tuple(reader.integer(ValueType.UINT64) for _ in range(dimensions))
             self.tensors.append(
                 GGUFTensor(
                     name=name,
                     shape=shape,
-                    type_id=reader.scalar(ValueType.UINT32),
-                    offset=reader.scalar(ValueType.UINT64),
+                    type_id=reader.integer(ValueType.UINT32),
+                    offset=reader.integer(ValueType.UINT64),
                 )
             )
 
-        self.alignment = int(self.metadata.get("general.alignment", DEFAULT_ALIGNMENT))
+        alignment = self.metadata.get("general.alignment", DEFAULT_ALIGNMENT)
+        if not isinstance(alignment, int):
+            raise GGUFError(f"general.alignment is {alignment!r}, not an integer")
+        self.alignment = alignment
         self.data_start = reader.cursor + (-reader.cursor % self.alignment)
 
     def _validate(self) -> None:

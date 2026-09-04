@@ -11,10 +11,15 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
+from numpy.typing import DTypeLike
 
 from bitflip.codec import BF16, FloatFormat
+
+if TYPE_CHECKING:
+    import torch
 
 TOP_EXPONENT_BIT = 14
 # The strongest exponent bit whose downward flip removes a weight without any value
@@ -179,7 +184,7 @@ def apply_flips(codes: np.ndarray, flips: Sequence[Flip]) -> np.ndarray:
     return modified
 
 
-def _integer_view(parameter):
+def _integer_view(parameter: torch.Tensor) -> tuple[torch.Tensor, int, DTypeLike]:
     """An integer view of a parameter, with the bit shift its dtype imposes.
 
     A bf16 weight promoted to float32 keeps its pattern **exactly** in the top 16 bits,
@@ -198,7 +203,7 @@ def _integer_view(parameter):
     raise TypeError(f"dtype {flat.dtype} is not supported for injection")
 
 
-def parameter_codes(parameter) -> np.ndarray:
+def parameter_codes(parameter: torch.Tensor) -> np.ndarray:
     """The stored bf16 pattern of every weight in a torch parameter.
 
     numpy has no bfloat16, so the tensor cannot simply be converted. It does not need
@@ -210,20 +215,22 @@ def parameter_codes(parameter) -> np.ndarray:
 
     flat = parameter.detach().reshape(-1).cpu()
     if flat.dtype == torch.float32:
-        raw = flat.view(torch.int32).numpy().astype(np.uint32)
+        raw = np.asarray(flat.view(torch.int32).numpy()).astype(np.uint32)
         return (raw >> 16).astype(np.uint16)
     if flat.dtype == torch.bfloat16:
-        return flat.view(torch.int16).numpy().view(np.uint16)
+        return np.asarray(flat.view(torch.int16).numpy()).view(np.uint16)
     raise TypeError(f"dtype {flat.dtype} carries no bf16 pattern")
 
 
-def model_codes(model) -> dict[str, np.ndarray]:
+def model_codes(model: torch.nn.Module) -> dict[str, np.ndarray]:
     """The bf16 patterns of every named parameter, ready for target selection."""
     return {name: parameter_codes(p) for name, p in model.named_parameters()}
 
 
 @contextmanager
-def flipped_model(model, flips: Sequence[Flip]) -> Iterator[dict[str, int]]:
+def flipped_model(
+    model: torch.nn.Module, flips: Sequence[Flip]
+) -> Iterator[dict[str, int]]:
     """Apply the faults to a torch model and **always** undo them on exit.
 
     The original values are kept in memory and restored even if the body fails:

@@ -52,10 +52,9 @@ artifacts = ["src/bitflip/spec/*.yaml"]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
 
-# Il livello e scelto perche passa oggi, non perche sia il piu alto possibile: un gate
-# rosso al primo giorno viene disattivato e non torna. `--strict` sul solo pacchetto
-# darebbe 27 errori, e `disallow_untyped_defs` ne da 14 (annotazioni di parametri
-# mancanti in codec.py e inject.py) — sono il prossimo passo, non un debito nascosto.
+# Il pacchetto e controllato al livello di `--strict`, espanso opzione per opzione qui
+# sotto perche `strict` non e impostabile per modulo; test ed esperimenti restano al
+# livello base, dove una fixture senza annotazioni non e un difetto.
 [tool.mypy]
 files = ["src/bitflip", "experiments", "tests"]
 # 3.12 e la versione che gira su Kaggle, dove le corse pubbliche avvengono. Non e il
@@ -66,6 +65,19 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 strict_equality = true
 no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "bitflip.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+check_untyped_defs = true
+warn_return_any = true
+no_implicit_reexport = true
+extra_checks = true
 
 [tool.ruff]
 line-length = 90

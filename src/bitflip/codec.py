@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike
 
 SIGN = "sign"
 EXPONENT = "exponent"
@@ -42,7 +43,7 @@ class FloatFormat:
 
     @property
     def bias(self) -> int:
-        return 2 ** (self.exponent_bits - 1) - 1
+        return (1 << (self.exponent_bits - 1)) - 1
 
 
 BF16 = FloatFormat(name="bf16", exponent_bits=8, mantissa_bits=7)
@@ -51,14 +52,14 @@ FP16 = FloatFormat(name="fp16", exponent_bits=5, mantissa_bits=10)
 FORMATS = {fmt.name: fmt for fmt in (BF16, FP16)}
 
 
-def _contiguous(values, dtype) -> np.ndarray:
+def _contiguous(values: ArrayLike, dtype: DTypeLike) -> np.ndarray:
     # ascontiguousarray promotes scalars to 1-d arrays; here the shape must be
     # preserved, because a caller passing one weight expects one value back.
     array = np.asarray(values, dtype=dtype)
     return array if array.flags.c_contiguous else np.ascontiguousarray(array)
 
 
-def _as_codes(values) -> np.ndarray:
+def _as_codes(values: ArrayLike) -> np.ndarray:
     return _contiguous(values, np.uint16)
 
 
@@ -89,17 +90,17 @@ _CODECS = {
 }
 
 
-def to_float32(codes, fmt: FloatFormat) -> np.ndarray:
+def to_float32(codes: ArrayLike, fmt: FloatFormat) -> np.ndarray:
     """The float32 values corresponding to the given bit patterns."""
     return _CODECS[fmt.name][0](_as_codes(codes))
 
 
-def from_float32(values, fmt: FloatFormat) -> np.ndarray:
+def from_float32(values: ArrayLike, fmt: FloatFormat) -> np.ndarray:
     """The bit patterns corresponding to the given values."""
     return _CODECS[fmt.name][1](_contiguous(values, np.float32))
 
 
-def flip_bit(codes, position: int, fmt: FloatFormat) -> np.ndarray:
+def flip_bit(codes: ArrayLike, position: int, fmt: FloatFormat) -> np.ndarray:
     """Flip the bit at `position` (0 is the least significant)."""
     if not 0 <= position < fmt.total_bits:
         raise ValueError(
@@ -125,7 +126,7 @@ def exponent_shift(position: int, fmt: FloatFormat) -> int:
     """How much the biased exponent changes when that bit is flipped."""
     if field_at(position, fmt) != EXPONENT:
         raise ValueError(f"position {position} of {fmt.name} is not an exponent bit")
-    return 2 ** (position - fmt.mantissa_bits)
+    return 1 << (position - fmt.mantissa_bits)
 
 
 def exponent_multiplier(position: int, fmt: FloatFormat) -> float:
@@ -138,19 +139,24 @@ def exponent_multiplier(position: int, fmt: FloatFormat) -> float:
     return float(2.0 ** exponent_shift(position, fmt))
 
 
-def compose(sign, exponent, mantissa, fmt: FloatFormat) -> np.ndarray:
+def compose(
+    sign: ArrayLike, exponent: ArrayLike, mantissa: ArrayLike, fmt: FloatFormat
+) -> np.ndarray:
     """Rebuild a pattern from its three fields. Inverse of `decompose`."""
     sign = _contiguous(sign, np.uint16)
     exponent = _contiguous(exponent, np.uint16)
     mantissa = _contiguous(mantissa, np.uint16)
-    return (
+    pattern = (
         (sign << np.uint16(fmt.sign_position))
         | (exponent << np.uint16(fmt.mantissa_bits))
         | mantissa
-    ).astype(np.uint16)
+    )
+    return np.asarray(pattern, dtype=np.uint16)
 
 
-def decompose(codes, fmt: FloatFormat) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def decompose(
+    codes: ArrayLike, fmt: FloatFormat
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Split patterns into (sign, biased exponent, mantissa)."""
     codes = _as_codes(codes)
     sign = (codes >> fmt.sign_position) & np.uint16(1)

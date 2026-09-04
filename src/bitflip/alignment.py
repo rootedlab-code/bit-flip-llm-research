@@ -321,7 +321,9 @@ def mcnemar_exact(only_first: int, only_second: int) -> float:
     if discordant == 0:
         return 1.0
     smaller = min(only_first, only_second)
-    tail = sum(math.comb(discordant, k) for k in range(smaller + 1)) / 2**discordant
+    tail = sum(math.comb(discordant, k) for k in range(smaller + 1)) / float(
+        2**discordant
+    )
     return min(1.0, 2 * tail)
 
 

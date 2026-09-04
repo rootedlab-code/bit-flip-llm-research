@@ -42,9 +42,9 @@ class CornerComparison:
     condition: str
     kind: str
     matched: int
-    before: Counter
-    after: Counter
-    transitions: Counter
+    before: Counter[str]
+    after: Counter[str]
+    transitions: Counter[Transition]
 
     @property
     def label(self) -> str:
@@ -150,7 +150,7 @@ def compare(old: VerdictTable, new: VerdictTable) -> Comparison:
     return Comparison(shared=len(shared), corners=corners)
 
 
-def summarise(counts: Counter) -> str:
+def summarise(counts: Counter[str]) -> str:
     """The verdict counts of one corner, in the specification's own order."""
     return " ".join(
         f"{name[:6]}={counts[name]}" for name in VERDICT_ORDER if counts[name]

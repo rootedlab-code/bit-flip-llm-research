@@ -102,7 +102,7 @@ class StoredWeights(Protocol):
     ) -> Iterator[tuple[TensorEntry, np.ndarray]]: ...
 
 
-def _parse_header(path: Path) -> tuple[dict[str, TensorEntry], int, dict]:
+def _parse_header(path: Path) -> tuple[dict[str, TensorEntry], int, dict[str, object]]:
     with path.open("rb") as handle:
         raw_length = handle.read(HEADER_LENGTH_BYTES)
         if len(raw_length) < HEADER_LENGTH_BYTES:
@@ -110,8 +110,8 @@ def _parse_header(path: Path) -> tuple[dict[str, TensorEntry], int, dict]:
         header_length = int.from_bytes(raw_length, "little")
         header = json.loads(handle.read(header_length))
 
-    metadata = header.pop("__metadata__", {})
-    entries = {}
+    metadata: dict[str, object] = header.pop("__metadata__", {})
+    entries: dict[str, TensorEntry] = {}
     for name, spec in header.items():
         start, end = spec["data_offsets"]
         entries[name] = TensorEntry(
