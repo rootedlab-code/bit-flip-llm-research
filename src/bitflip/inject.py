@@ -90,8 +90,12 @@ def largest_magnitude_flips(
 
     ranked: list[tuple[float, str, int]] = []
     for name, tensor_codes in codes.items():
-        values = to_float32(tensor_codes, fmt).astype(np.float64)
-        after = to_float32(flip_bit(tensor_codes, bit, fmt), fmt).astype(np.float64)
+        # A flipped pattern can land on a signalling NaN -- exponent all ones, quiet bit
+        # clear -- and promoting one to float64 raises the invalid flag by design. The
+        # result is a quiet NaN that `isfinite` excludes, so the flag carries nothing.
+        with np.errstate(invalid="ignore"):
+            values = to_float32(tensor_codes, fmt).astype(np.float64)
+            after = to_float32(flip_bit(tensor_codes, bit, fmt), fmt).astype(np.float64)
         usable = (((tensor_codes >> np.uint16(bit)) & np.uint16(1)) == 0) & np.isfinite(
             values
         )
@@ -144,7 +148,9 @@ def collapse_flips(
 
     ranked: list[tuple[float, str, int]] = []
     for name, tensor_codes in codes.items():
-        values = to_float32(tensor_codes, fmt).astype(np.float64)
+        # See `largest_magnitude_flips`: a stored pattern can itself be a signalling NaN.
+        with np.errstate(invalid="ignore"):
+            values = to_float32(tensor_codes, fmt).astype(np.float64)
         # Eligible where the bit is already set, which is where the flip goes downward.
         # In bf16 that is almost everywhere: E1 measures bit 13 as 1 in 99.998% of
         # weights, so the policy is not short of targets.

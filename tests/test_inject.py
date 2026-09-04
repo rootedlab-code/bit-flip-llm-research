@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections import Counter
 
 import numpy as np
@@ -338,3 +339,15 @@ def test_collapse_faults_ignore_weights_that_are_not_finite():
     codes = {"w": np.array([0x7FC0, 0x3C00], dtype=np.uint16)}  # NaN, then 1.0
 
     assert [flip.index for flip in collapse_flips(codes, count=2)] == [1]
+
+
+def test_selection_over_every_pattern_raises_no_warning():
+    """A flipped pattern can be a signalling NaN, and promoting one to float64 raises
+    the invalid flag by design. The value is excluded as non-finite either way, so the
+    flag carries nothing -- and a published notebook was printing it as a warning."""
+    codes = {"t": np.arange(65536, dtype=np.uint16)}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        largest_magnitude_flips(codes, count=3)
+        collapse_flips(codes, count=3)
