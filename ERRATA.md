@@ -145,9 +145,10 @@ consequence is not cosmetic: the exactness is what makes the quantised scales *a
 
 **Propagation:** `docs/e1-bit-hierarchy.md`, `docs/e3-gguf-surface.md`, `results/`, the
 dataset description and the notebook sources (commits `bd18409`, `c20d179`, `62d3189`,
-`65a350e`, `cc514a9`). **Outstanding:** the published Kaggle page for the E1-at-scale
-notebook still displays the superseded figure — its source in this repository is corrected,
-but the page has not been re-submitted since.
+`65a350e`, `cc514a9`). The published Kaggle page for the E1-at-scale notebook displayed
+the superseded figure until 2026-09-04, when the notebook was re-submitted as its version 3:
+the page now prints 99.9980%, 99.9995% and 99.9998%, and the CSVs that run regenerated are
+byte-identical to the versioned ones. Propagation complete.
 
 ## 2026-08-28 — A false positive in the catastrophic test
 
