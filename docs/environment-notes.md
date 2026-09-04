@@ -383,6 +383,14 @@ validate. `kaggle datasets metadata -p <dir> <slug>` returns what was actually s
 
 ## Concluding "it is not there" after looking in the wrong place
 
+A third instance, 2026-09-04. `kaggle datasets files <slug>` lists **twenty** files and
+then prints a `Next Page Token` line above the table. A dataset with twenty-two files
+shows twenty, and a check that greps the listing for the five files just uploaded finds
+four, because the fifth is on the page nobody asked for. The conclusion "one upload did
+not land" was a sentence away; `--page-size 50` showed all twenty-two. The token line is
+the instrument saying it did not show everything, and it is printed *before* the table,
+where a reader looking at the table does not look.
+
 The mirror of every entry above. Those are tools reporting success while failing; this is
 a reader reporting absence while looking somewhere else, and it costs the same hours.
 
