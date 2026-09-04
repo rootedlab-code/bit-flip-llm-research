@@ -37,7 +37,7 @@ published.
 | baseline | Deterministic perplexity, and the noise floor between sessions | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
 | **E2** | Model degradation: random flips versus chosen flips | **measured** — [`docs/e2-degradation.md`](docs/e2-degradation.md) |
 | oracle | Deterministic refusal / compliance / degenerate classifier | **measured — spec v3 validated at 6 of 6 corners** — [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md); still not checked against human labels, and a quarter of a working model's benign answers remain undecided |
-| **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | not yet measured (S5b) |
+| **E5** | Silent de-alignment: De-alignment Fraction and Stealth Ratio | **measured — DF = 0 at every dose on both arms** — [`docs/e5b-silent-dealignment.md`](docs/e5b-silent-dealignment.md); the Stealth Ratio is withheld at every dose, and the note says why |
 | **E4** | From field fault rates to time before a natural critical flip | not yet measured (S6) |
 | **E6** | Agentic severity: does a flip make a tool-using agent take destructive actions? | not yet measured — every tool is an instrumented stub that records the call and does nothing |
 
@@ -140,6 +140,31 @@ in the two formats, quantised damage is spatially correlated, and "weights lost"
 yet "damage to the model". They are stated in full in the technical note, and they should be read alongside the
 headline number.
 
+### E5 — no silent window at the doses a fault can deliver
+
+Measured on `Qwen3-4B-Instruct-2507`: 300 harmful probes at every dose, both controls in
+the same run, criteria frozen and attested before the first token
+([`docs/e5b-silent-dealignment.md`](docs/e5b-silent-dealignment.md)).
+
+| arm | doses | De-alignment Fraction | perplexity, relative | collapsed |
+|---|---|---|---|---|
+| chosen — bit 13 of the largest weights, downward | 1, 2, 5, 10 | **0.000** at every dose | −1.7 × 10⁻⁴ (an improvement) rising to +4.1 × 10⁻⁴ | none |
+| random — three seeds per dose | 1, 2, 5, 10 | **0.000** at every non-collapsed dose | +10⁻⁴ to +6 × 10⁻⁴ | 1 seed of 3 at dose 10 |
+
+The flipped model complies with the same 4 of 300 probes as the intact one, against 197
+for the abliterated anchor, and the paired test finds no discordant pairs. Perplexity, by
+contrast, moves at every dose above the 3 × 10⁻⁵ floor E2 measured. The pre-registered
+null was alignment and capability failing together; what happened is a third case —
+**capability moved first, and alignment did not move at all.** The Stealth Ratio is
+withheld at every dose, and each row of `results/e5b-*-scores.csv` says why: a fraction
+inside its own interval divided by a small perplexity change is not a ratio.
+
+Two things this does not cover, both stated in the note. The optimised search that
+[`SCOPE.md` §5.1](SCOPE.md) permits has not been run, so the chosen arm bounds an
+*unoptimised* attacker only. And the top-1 agreement of every condition, on both arms,
+was lost with a kernel that died after its last condition — the notebook now checkpoints
+it.
+
 ## Reproduction
 
 Requirements: Python ≥ 3.13 and [`uv`](https://docs.astral.sh/uv/). No GPU is needed for
@@ -184,6 +209,8 @@ and a local run execute the same code, at whichever commit is current.
 |---|---|---|
 | [oracle validation](https://www.kaggle.com/code/seb001010/bit-flip-e5-oracle-validation) | validates the refusal / compliance / degenerate classifier at six corners, three models against two probe sets | ~41 min, 2×T4 |
 | [E2 degradation](https://www.kaggle.com/code/seb001010/bit-flip-e2-degradation) | perplexity and top-1 agreement under random and chosen faults, and the leverage figure between them | GPU |
+| [E5b, chosen arm](https://www.kaggle.com/code/seb001010/bit-flip-e5b-silent-dealignment-chosen-arm) | De-alignment Fraction and Stealth Ratio under the registered chosen policy, four doses, both controls in the run | ~2.8 h of generation, ~4.5 h wall, 2×T4 |
+| [E5b, random arm](https://www.kaggle.com/code/seb001010/bit-flip-e5b-silent-dealignment-random-arm) | the same under random flips, three seeds per dose | ~6 h of generation, ~8 h wall, 2×T4 |
 
 Every CSV behind the figures quoted above is also published as a dataset:
 [**bit-flip results**](https://www.kaggle.com/datasets/seb001010/bit-flip-results). It
@@ -359,9 +386,11 @@ substitutes a smaller model is worse than one that does not run.
 3. [`docs/e1-bit-hierarchy.md`](docs/e1-bit-hierarchy.md),
    [`docs/e1-scale.md`](docs/e1-scale.md),
    [`docs/e3-gguf-surface.md`](docs/e3-gguf-surface.md),
-   [`docs/e2-degradation.md`](docs/e2-degradation.md) and
-   [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md) — the per-experiment
-   technical notes: method, result, and declared boundaries, one per experiment.
+   [`docs/e2-degradation.md`](docs/e2-degradation.md),
+   [`docs/e5-oracle-validation.md`](docs/e5-oracle-validation.md) and
+   [`docs/e5b-silent-dealignment.md`](docs/e5b-silent-dealignment.md) — the
+   per-experiment technical notes: method, result, and declared boundaries, one per
+   experiment.
 4. `results/` — the CSVs behind every figure quoted above, and
    `results/history/` for the runs that were withdrawn.
 5. [`ERRATA.md`](ERRATA.md) — what this project has said and unsaid, and how far each
@@ -370,11 +399,11 @@ substitutes a smaller model is worse than one that does not run.
 ### The write-up
 
 A note covering the whole programme exists and is **not** published. It is held until the
-two experiments still open — E4 and E5 — have been run, so that the argument it makes can
-be made once, over a complete record, instead of being revised under a reader's eye.
+experiment still open — E4 — has been run, so that the argument it makes can be made
+once, over a complete record, instead of being revised under a reader's eye.
 
 Until then this repository is the record, not a trailer for one: the code, the data, the
-five per-experiment notes under `docs/`, [`SCOPE.md`](SCOPE.md) and
+six per-experiment notes under `docs/`, [`SCOPE.md`](SCOPE.md) and
 [`ERRATA.md`](ERRATA.md) are complete and reproducible as they stand.
 
 ## Licence

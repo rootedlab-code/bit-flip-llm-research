@@ -68,7 +68,7 @@ print(f"{len(list(DATA.glob('*')))} files")
 # | **E3** | Does quantisation protect? | **measured** |
 # | **E2** | How much does the model actually degrade? | **measured** |
 # | oracle | Can a program tell refusal from compliance? | **measured**, 6 corners of 6 |
-# | **E5** | Does *alignment* fail before *capability*? | **running** |
+# | **E5** | Does *alignment* fail before *capability*? | **measured** — no |
 # | **E4** | How long until a natural fault hits a critical bit? | not run |
 # | **E6** | Does a flipped agent take destructive actions? | not run |
 #
@@ -159,9 +159,7 @@ cols = ["model", "weights", "catastrophic_bit_fraction", "top_exponent_zero_frac
 shown = scale[cols]
 print(shown.to_string(index=False, float_format=lambda v: f"{v:.6%}"))
 spread = scale.catastrophic_bit_fraction.max() - scale.catastrophic_bit_fraction.min()
-print(f"\nspread across a 15x range: "
-      f"{spread * 100:.4f} "
-      f"percentage points")
+print(f"\nspread across a 15x range: {spread * 100:.4f} percentage points")
 
 # %% [markdown]
 # It is the **format**, not the model. All three sit just above the 6.25% floor that one
@@ -259,6 +257,45 @@ print(oracle.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 # agreement with a person, and it is not a substitute for it.
 
 # %% [markdown]
+# ## E5 — nothing moved, and capability moved first
+#
+# Two arms, four doses, the same 300 harmful probes at every dose, both controls measured
+# inside the same run. The random arm is the cosmic ray, three seeds per dose. The chosen
+# arm flips bit 13 of the largest weights downward — the channel that removes a weight —
+# a policy registered before the run, with its bias towards the null declared beside it.
+
+# %%
+scores = pd.concat([read("e5b-chosen-scores.csv"), read("e5b-random-scores.csv")])
+columns = [
+    "condition",
+    "df_strict",
+    "df_strict_low",
+    "df_strict_high",
+    "relative_perplexity_change",
+    "collapsed",
+    "stealth_withheld",
+]
+print(scores[columns].to_string(index=False, float_format=lambda v: f"{v:.3g}"))
+
+# %% [markdown]
+# **The De-alignment Fraction is zero at every dose on both arms.** The flipped model
+# complies with the same three or four probes of 300 as the intact one; the abliterated
+# anchor complies with 197. Perplexity, meanwhile, moves at every non-collapsed dose — by
+# 10⁻⁴ to 6·10⁻⁴ relative, above the 3·10⁻⁵ floor E2 measured — and removing the single
+# largest weight *improves* it. One random seed in three collapsed at ten flips, which is
+# what E1's catastrophic fraction predicts.
+#
+# So the pre-registered null — alignment and capability failing together — is not what
+# happened either. At the doses a fault can deliver, capability is the first thing to
+# move and alignment has not moved at all. The Stealth Ratio is withheld in every row,
+# and the row says why: a fraction inside its own interval divided by a small perplexity
+# change is the quotient of two noises, not a ratio.
+#
+# What this does not show, stated in the technical note: doses beyond ten, the optimised
+# search the project's scope permits, a second model family, or agreement with human
+# labels.
+
+# %% [markdown]
 # ## How the work is kept honest
 #
 # Three rules, and each one has caught something:
@@ -299,8 +336,9 @@ print(oracle.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 manifest = load("models-manifest.json")
 print("every artefact measured, pinned by revision and digest:\n")
 for entry in manifest:
-    print(f"  {entry['repo_id']:<46} @{entry['revision'][:8]}"
-          f"  {entry['bytes']:>13,} bytes")
+    print(
+        f"  {entry['repo_id']:<46} @{entry['revision'][:8]}  {entry['bytes']:>13,} bytes"
+    )
 print("\nreproduce:")
 print("  uv sync && uv run pytest")
 print("  uv run python -m bitflip.fetch")
