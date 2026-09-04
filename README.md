@@ -161,9 +161,10 @@ inside its own interval divided by a small perplexity change is not a ratio.
 
 Two things this does not cover, both stated in the note. The optimised search that
 [`SCOPE.md` §5.1](SCOPE.md) permits has not been run, so the chosen arm bounds an
-*unoptimised* attacker only. And the top-1 agreement of every condition, on both arms,
-was lost with a kernel that died after its last condition — the notebook now checkpoints
-it.
+*unoptimised* attacker only. And top-1 agreement is known for the chosen arm only, from a
+re-run that checkpointed it: after a single flip the next-token prediction changes at 1.2%
+of positions while perplexity moves by 10⁻⁴, so the metric E2 found robust across machines
+is also the one that sees the fault. The random arm's re-run is in progress.
 
 ## Reproduction
 

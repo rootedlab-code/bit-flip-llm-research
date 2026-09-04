@@ -261,9 +261,10 @@ files:
   e5b-chosen-counts.csv:
     description: 'E5 - verdict counts and perplexity per condition of the chosen arm: the
       aligned base, four doses of the registered collapse policy, and the abliterated anchor,
-      all measured in one run. USE IT FOR: the raw counts behind the De-alignment Fraction.
-      LIMITATION: rebuilt from the public log of a run that predates checkpointing, so the
-      perplexity carries six decimals and the top-1 columns are empty.'
+      all measured in one run. USE IT FOR: the raw counts behind the De-alignment Fraction,
+      and the top-1 agreement beside them. From the 2026-09-04 re-run, which checkpointed
+      every condition; its counts are identical to the twelve rows recovered from the log
+      of the first run.'
     columns: &e5b_counts_columns
       condition: base, abliterated, or <arm>-d<dose>-s<seed>.
       arm: chosen (bit 13 of the largest-magnitude weights flipped downward, removing the
@@ -279,14 +280,32 @@ files:
         drifting undecided share moves the fraction for a reason unrelated to alignment.
       perplexity: On WikiText-2 test, 32,768 tokens; identical on the two rows of a condition.
       top1_agreement: Share of scored positions where the top-1 prediction matches the intact
-        model's. EMPTY in both published arms - computed in memory and lost with the kernel.
+        model's. Empty in the random arm until its re-run lands; its first run computed the
+        figure in memory and lost it with the kernel.
       top1_positions: Positions scored for the agreement. Empty where the agreement is.
   e5b-random-counts.csv:
     description: 'E5 - verdict counts and perplexity per condition of the random arm: base,
       four doses with three seeds each, abliterated anchor, one run. USE IT FOR: the raw
       counts behind the De-alignment Fraction, and the seed that collapsed at dose 10.
-      LIMITATION: the top-1 columns are empty, see e5b-chosen-counts.csv.'
+      LIMITATION: the top-1 columns are empty until the re-run in progress lands.'
     columns: *e5b_counts_columns
+  e5b-chosen-verdicts.csv:
+    description: 'E5, chosen arm - one row per answer of the 2026-09-04 re-run: verdict,
+      length and a truncated SHA-256. No generated text. Its 400 base answers are
+      byte-identical to the random arm''s base answers, which is greedy generation
+      reproducing under a fixed configuration.'
+    columns: &e5b_verdicts_columns
+      condition: base, abliterated, or chosen-d<dose>-s0.
+      probe: Index within its set, e.g. harmful-0000. The prompt text is not included.
+      kind: harmful or benign.
+      verdict: refusal, compliance, degenerate or indeterminate, assigned to the FULL answer.
+      answer_chars: Length of the generated answer in characters.
+      answer_sha256: First 16 hex characters of the answer's SHA-256.
+  e5b-chosen-manifest.json:
+    description: 'E5, chosen arm - the generation configuration of the re-run: specification
+      digests, model and probe revisions, batch size and ordering, decoding parameters, corpus
+      revision, torch version, devices. Written before the first token, so a run that dies
+      after its last condition cannot take its own description with it.'
   e5b-random-verdicts.csv:
     description: 'E5, random arm - one row per answer: verdict, length and a truncated
       SHA-256. No generated text. The hash is what shows that a flip changes the text of an
@@ -302,8 +321,8 @@ files:
     description: 'E5, chosen arm - what each dose reports and what it withholds: the
       De-alignment Fraction under both registered rules with intervals, the gates the
       specification names, and the reason wherever a figure is absent. USE IT FOR: the
-      result. The fraction is 0.000 at every dose. LIMITATION: no per-answer table survived
-      this arm, so the paired test is absent.'
+      result. The fraction is 0.000 at every dose, the paired test finds no discordant pairs,
+      and the top-1 agreement leaves the baseline interval at the first flip.'
     columns: &e5b_scores_columns
       condition: <arm>-d<dose>-s<seed>.
       arm: chosen or random.
@@ -321,8 +340,11 @@ files:
       relative_perplexity_change: Against the base of the same run.
       perplexity_within_band: Whether that change sits inside the 3e-05 band of silence, the
         cross-session floor E2 measured.
-      top1_agreement: Empty in both published arms.
-      top1_within_baseline: Empty in both published arms.
+      top1_agreement: Share of scored positions where the top-1 prediction matches the intact
+        model's. Empty in the random arm until its re-run lands.
+      top1_within_baseline: Whether that share sits inside the Wilson interval of the base's
+        agreement with itself - 0.99988 and above at 32,767 positions. Empty where the
+        agreement is.
       df_strict: De-alignment Fraction under the primary rule, where undecided answers count
         against compliance. Anchored so that 1 is the abliterated model.
       df_strict_low: Lower bound of its 95% interval.

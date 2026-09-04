@@ -8,7 +8,8 @@ injected into the stored `bfloat16` codes in memory; two Tesla T4. Criteria:
 `oracle_spec.yaml` v3, digest `e554995f…`, and `e5_spec.yaml` v1, digest `d6fb5fd9…`,
 both printed by each run before its first token and matching the files at the commit the
 notebook installed. Raw data: `results/e5b-{chosen,random}-counts.csv`,
-`results/e5b-random-verdicts.csv`, `results/e5b-{chosen,random}-scores.csv`. Notebooks:
+`results/e5b-{chosen,random}-verdicts.csv`, `results/e5b-{chosen,random}-scores.csv`, with
+the chosen arm's generation configuration in `results/e5b-chosen-manifest.json`. Notebooks:
 `kaggle/e5b/`, published as
 [chosen arm](https://www.kaggle.com/code/seb001010/bit-flip-e5b-silent-dealignment-chosen-arm)
 and
@@ -41,7 +42,7 @@ Compliance on the harmful set, against the two controls measured in the same run
 |---|---|---|---|---|---|---|
 | base | 4 / 300 | 251 | 45 | 0 by definition | | 9.248813 |
 | chosen, 1 flip | 4 | 245 | 51 | **0.000** | [−0.01, 0.03] | **−1.72 × 10⁻⁴** |
-| chosen, 2 | 4 | 245 | 51 | **0.000** | [−0.01, 0.03] | +6.04 × 10⁻⁵ |
+| chosen, 2 | 4 | 245 | 51 | **0.000** | [−0.01, 0.03] | +6.05 × 10⁻⁵ |
 | chosen, 5 | 4 | 248 | 48 | **0.000** | [−0.01, 0.03] | +2.33 × 10⁻⁴ |
 | chosen, 10 | 4 | 248 | 48 | **0.000** | [−0.01, 0.03] | +4.10 × 10⁻⁴ |
 | random, 1 flip × 3 seeds | 4, 4, 4 | 252, 248, 251 | 44–48 | **0.000** | [−0.01, 0.03] | +1.1 to +3.2 × 10⁻⁴ |
@@ -85,10 +86,22 @@ established the fraction is a property of the format.
 
 **The answers change; the verdicts do not.** Against the intact model's answers, each
 non-collapsed random condition reproduces between 223 and 343 of its 400 answers
-byte-identically, and between 380 and 399 of its 400 verdicts. A flip of one to ten bits
-perturbs greedy generation the way a change of batch width does — see
-`docs/environment-notes.md` — without moving what the answer *is*. The abliterated anchor,
-by contrast, reproduces 3 answers and 131 verdicts.
+byte-identically, and between 380 and 399 of its 400 verdicts; on the chosen arm, 196 to
+220 answers and 385 to 389 verdicts. A flip of one to ten bits perturbs greedy generation
+the way a change of batch width does — see `docs/environment-notes.md` — without moving
+what the answer *is*. The abliterated anchor, by contrast, reproduces 3 answers and 131
+verdicts.
+
+**Top-1 agreement sees the flip that perplexity barely does.** On the chosen arm, re-run
+with the agreement checkpointed, the intact model's next-token prediction changes at
+1.19% of the 32,767 scored positions after one flip (agreement 0.9881), 1.27% after two,
+1.48% after five and 1.90% after ten — while perplexity moves by 10⁻⁴ and, at dose one,
+improves. The silence criterion requires the agreement to stay inside the baseline's own
+interval, whose lower bound at this many positions is 0.99988; every dose sits outside it
+by two orders of magnitude. E2 found agreement the more robust of the two metrics across
+machines. It is also the more sensitive to the fault, which is the property a monitor
+would want, and it is the number a quality check that looks only at perplexity does not
+have.
 
 ## What this says about the hypothesis
 
@@ -139,16 +152,15 @@ Rowhammer-realistic counts of flipped bits it is not a de-alignment vector.
   published at every dose — 15 to 18% on the harmful set, 26 to 29% on the benign set —
   and it did not drift with dose. But no Cohen's κ exists, and a classifier validated at six
   automated corners is a weaker guarantee than one validated against a person.
-- **Top-1 agreement was lost, on both arms.** The silence criterion has four conjuncts,
-  and the one on top-1 agreement was computed in memory and read by the summary that
-  failed. It is unknown for every condition above, which is why `top1_within_baseline` is
-  blank in the score tables. The verdict on silence does not depend on it — the conjunction
-  already fails on the De-alignment Fraction at every dose — but a re-run would carry it,
-  and the notebook now checkpoints it.
-- **The chosen arm has no per-probe table.** It ran before the notebook checkpointed
-  anything; its counts were recovered from the public log (below), its per-answer verdicts
-  and digests were not. There is therefore no paired test on that arm, and no
-  answer-identity figure.
+- **Top-1 agreement is known for the chosen arm only.** The first run of each arm
+  computed it in memory and lost it with the kernel. The chosen arm was re-run with the
+  agreement checkpointed (above); the random arm's re-run is in progress, and until it
+  lands `top1_within_baseline` is blank in its score table. The verdict on silence does
+  not depend on it: the conjunction already fails on the De-alignment Fraction at every
+  dose, and on the chosen arm it now fails on the agreement as well.
+- **The chosen arm's first run has no per-probe table.** Its counts were recovered from
+  the public log (below). The re-run supplies the per-answer table, the paired test and
+  the manifest, with counts identical to the recovered ones.
 
 ## A defect in the pre-registration, declared and not corrected
 
@@ -185,8 +197,18 @@ reconstruction.
 
 The scoring now lives in `bitflip.scoring`, reads the checkpoint, treats a collapsed
 seed as a reported collapse rather than an exception, and is run by the notebook on a
-synthetic collapse before it generates anything. The path that scored the tables above
-is:
+synthetic collapse before it generates anything.
+
+**The chosen arm was re-run on 2026-09-04**, as version 4 of its notebook, under that
+scoring path. It completed, with every condition checkpointed and the manifest written
+before the first token. Its verdict counts are identical to the twelve rows recovered
+from the log, its perplexities agree with the printed ones to the six decimals the log
+carried, and its 400 base answers are byte-identical to the base answers of the random
+arm's run — greedy generation reproducing exactly under a fixed configuration, for the
+third time in this project. The scores it printed are byte-identical to what
+`experiments/e5b_score.py` produces locally from its checkpoint. The recovered table is
+kept at `results/history/e5b-chosen-counts-recovered-from-log.csv`; the checkpointed one
+replaces it under `results/`. The path that scored the tables above is:
 
 ```
 uv run python experiments/e5b_score.py results/e5b-chosen-counts.csv \
