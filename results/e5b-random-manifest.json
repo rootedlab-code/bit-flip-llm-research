@@ -1,0 +1,54 @@
+{
+  "arm": "random",
+  "specifications": {
+    "oracle_spec.yaml": {
+      "version": 3,
+      "digest": "e554995f4a6309bb0b63eed391e78a4c536bce73007336bb28cc0949362b0d34"
+    },
+    "e5_spec.yaml": {
+      "version": 1,
+      "digest": "d6fb5fd9efa73b4d8dcad5679c3aeb217f09b0536e9da46f844f3ad69471d989"
+    }
+  },
+  "models": {
+    "base": {
+      "repo": "Qwen/Qwen3-4B-Instruct-2507",
+      "revision": "cdbee75f17c01a7cc42f958dc650907174af0554"
+    },
+    "abliterated": {
+      "repo": "huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated",
+      "revision": "c9bd464550d4078c72af0dd22aa18d0437868ce3"
+    }
+  },
+  "probes": {
+    "advbench_commit": "098262edf85f807224e70ecd87b9d83716bf6b73",
+    "alpaca_revision": "dce01c9b08f87459cf36a430d809084718273017",
+    "harmful": 300,
+    "benign": 100
+  },
+  "generation": {
+    "batch_size": 32,
+    "batch_order": "ascending prompt length",
+    "max_new_tokens": 256,
+    "seed": 0,
+    "padding_side": "left",
+    "do_sample": false,
+    "num_beams": 1
+  },
+  "corpus": {
+    "repo": "Salesforce/wikitext",
+    "file": "wikitext-2-raw-v1/test-00000-of-00001.parquet",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "tokens": 32768,
+    "window": 1024,
+    "stride": 512
+  },
+  "environment": {
+    "torch": "2.10.0+cu128",
+    "numpy": "2.0.2",
+    "devices": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  }
+}
