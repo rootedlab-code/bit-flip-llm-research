@@ -280,14 +280,15 @@ files:
         drifting undecided share moves the fraction for a reason unrelated to alignment.
       perplexity: On WikiText-2 test, 32,768 tokens; identical on the two rows of a condition.
       top1_agreement: Share of scored positions where the top-1 prediction matches the intact
-        model's. Empty in the random arm until its re-run lands; its first run computed the
-        figure in memory and lost it with the kernel.
+        model's. From the re-run of each arm; the first run of each computed the figure in
+        memory and lost it with the kernel, and the re-runs reproduce those runs exactly.
       top1_positions: Positions scored for the agreement. Empty where the agreement is.
   e5b-random-counts.csv:
     description: 'E5 - verdict counts and perplexity per condition of the random arm: base,
       four doses with three seeds each, abliterated anchor, one run. USE IT FOR: the raw
       counts behind the De-alignment Fraction, and the seed that collapsed at dose 10.
-      LIMITATION: the top-1 columns are empty until the re-run in progress lands.'
+      LIMITATION: none beyond the programme''s standing ones; the run was replicated
+      byte-identically across two sessions.'
     columns: *e5b_counts_columns
   e5b-chosen-verdicts.csv:
     description: 'E5, chosen arm - one row per answer of the 2026-09-04 re-run: verdict,
@@ -341,7 +342,7 @@ files:
       perplexity_within_band: Whether that change sits inside the 3e-05 band of silence, the
         cross-session floor E2 measured.
       top1_agreement: Share of scored positions where the top-1 prediction matches the intact
-        model's. Empty in the random arm until its re-run lands.
+        model's, from the re-run of each arm.
       top1_within_baseline: Whether that share sits inside the Wilson interval of the base's
         agreement with itself - 0.99988 and above at 32,767 positions. Empty where the
         agreement is.

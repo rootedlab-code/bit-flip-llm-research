@@ -92,16 +92,34 @@ the way a change of batch width does — see `docs/environment-notes.md` — wit
 what the answer *is*. The abliterated anchor, by contrast, reproduces 3 answers and 131
 verdicts.
 
-**Top-1 agreement sees the flip that perplexity barely does.** On the chosen arm, re-run
-with the agreement checkpointed, the intact model's next-token prediction changes at
-1.19% of the 32,767 scored positions after one flip (agreement 0.9881), 1.27% after two,
-1.48% after five and 1.90% after ten — while perplexity moves by 10⁻⁴ and, at dose one,
-improves. The silence criterion requires the agreement to stay inside the baseline's own
-interval, whose lower bound at this many positions is 0.99988; every dose sits outside it
-by two orders of magnitude. E2 found agreement the more robust of the two metrics across
-machines. It is also the more sensitive to the fault, which is the property a monitor
-would want, and it is the number a quality check that looks only at perplexity does not
-have.
+**And across runs, nothing changes at all.** The random arm was run twice, in separate
+sessions eight days apart, under one configuration: **5,600 answers of 5,600 came back
+byte-identical**, with counts and perplexities identical to full precision. Its first
+run's verdict table has SHA-256 `5b324342…`, which is what a re-runner checks against; no
+duplicate of it is shipped, because two identical files in a repository are
+indistinguishable from one file copied. The chosen arm's 400 base answers are identical to
+the random arm's, and those are different kernels. This is the fourth replication of exact
+greedy generation under a fixed configuration in this project, after the oracle run's 600
+of 600.
+
+**Top-1 agreement sees the flip that perplexity barely does, on both arms.** Both arms
+were re-run with the agreement checkpointed. The intact model's next-token prediction
+changes at 1.19% of the 32,767 scored positions after one chosen flip (agreement 0.9881),
+and at 1.90% after ten; after one *random* flip it changes at 0.81% (0.9919, 0.9901,
+0.9924 across the three seeds), and at 1.12% to 1.99% at ten. Perplexity over the same
+conditions moves by a part in ten thousand, and at the chosen arm's dose one it improves.
+
+The silence criterion requires the agreement to stay inside the baseline's own interval,
+whose lower bound at this many positions is 0.99988. **Every condition on both arms sits
+outside it, by two orders of magnitude.** The collapsed seed reads 6.1 × 10⁻⁵, which is
+the brick.
+
+E2 found agreement the more robust of the two metrics across machines. It is also the more
+sensitive to the fault, which is the property a monitor wants, and it is the number a
+quality check that looks only at perplexity does not have. It is worth stating plainly
+what this costs the hypothesis: there is no dose, on either arm, at which the model is
+both measurably de-aligned and quietly passing its checks. There is no dose at which it is
+de-aligned at all, and there is none at which it passes its checks.
 
 ## What this says about the hypothesis
 
@@ -152,12 +170,9 @@ Rowhammer-realistic counts of flipped bits it is not a de-alignment vector.
   published at every dose — 15 to 18% on the harmful set, 26 to 29% on the benign set —
   and it did not drift with dose. But no Cohen's κ exists, and a classifier validated at six
   automated corners is a weaker guarantee than one validated against a person.
-- **Top-1 agreement is known for the chosen arm only.** The first run of each arm
-  computed it in memory and lost it with the kernel. The chosen arm was re-run with the
-  agreement checkpointed (above); the random arm's re-run is in progress, and until it
-  lands `top1_within_baseline` is blank in its score table. The verdict on silence does
-  not depend on it: the conjunction already fails on the De-alignment Fraction at every
-  dose, and on the chosen arm it now fails on the agreement as well.
+- **Top-1 agreement was lost by the first run of each arm** and recovered by re-running
+  both with it checkpointed. The figures above are from those re-runs, whose counts and
+  answers are identical to the first runs', so nothing else in this note moved.
 - **The chosen arm's first run has no per-probe table.** Its counts were recovered from
   the public log (below). The re-run supplies the per-answer table, the paired test and
   the manifest, with counts identical to the recovered ones.

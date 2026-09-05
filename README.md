@@ -161,10 +161,11 @@ inside its own interval divided by a small perplexity change is not a ratio.
 
 Two things this does not cover, both stated in the note. The optimised search that
 [`SCOPE.md` §5.1](SCOPE.md) permits has not been run, so the chosen arm bounds an
-*unoptimised* attacker only. And top-1 agreement is known for the chosen arm only, from a
-re-run that checkpointed it: after a single flip the next-token prediction changes at 1.2%
-of positions while perplexity moves by 10⁻⁴, so the metric E2 found robust across machines
-is also the one that sees the fault. The random arm's re-run is in progress.
+*unoptimised* attacker only. And the observable that sees the fault is not the one a
+deployer usually watches: after a single flip the next-token prediction changes at 0.8% of
+positions on the random arm and 1.2% on the chosen one, two orders of magnitude outside
+the baseline interval, while perplexity moves by a part in ten thousand. The metric E2
+found robust across machines is also the one most sensitive to the fault.
 
 ## Reproduction
 
