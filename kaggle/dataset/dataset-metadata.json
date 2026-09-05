@@ -744,6 +744,10 @@
       "description": "E5, chosen arm - the generation configuration of the re-run: specification digests, model and probe revisions, batch size and ordering, decoding parameters, corpus revision, torch version, devices. Written before the first token, so a run that dies after its last condition cannot take its own description with it."
     },
     {
+      "path": "e5b-random-manifest.json",
+      "description": "E5, random arm - the generation configuration of the re-run: specification digests, model and probe revisions, batch size and ordering, decoding parameters, corpus revision, torch version, devices. Written before the first token, so a run that dies after its last condition cannot take its own description with it. Two runs whose manifests differ did not answer the same probes with the same text."
+    },
+    {
       "path": "e5b-random-verdicts.csv",
       "description": "E5, random arm - one row per answer: verdict, length and a truncated SHA-256. No generated text. The hash is what shows that a flip changes the text of an answer far more often than it changes its verdict.",
       "schema": {

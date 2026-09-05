@@ -7,6 +7,9 @@ cover image, which is settable only from the web interface.
 Three of Kaggle's rules are enforced here because each one costs a failed update to
 discover, and none of them is reported at the point of use:
 
+- a file left out of `resources` is simply not published, and nothing says so: the
+  omission is invisible on the page and in the exit status. `e5b-random-manifest.json`
+  was written, committed and left unpublished exactly that way;
 - the subtitle must be 20 to 80 characters, or the whole update is refused;
 - keywords come from a controlled vocabulary, and one unknown keyword fails the update;
 - **`kaggle datasets version` does not send the licence at all.** It uploads files. Only
@@ -36,6 +39,19 @@ SUBTITLE_LIMITS = (20, 80)
 
 class MetadataError(ValueError):
     """The metadata cannot be built from what is on disk."""
+
+
+def unpublished(resources: list[dict]) -> list[str]:
+    """Files under `results/` that no resource entry publishes.
+
+    `build` checks that everything published is described. This checks the other
+    direction, which is the one that fails silently: a results file nobody listed is
+    absent from the dataset with no error anywhere, and the page looks complete because
+    every file that *is* there is documented.
+    """
+    published = {resource["path"] for resource in resources}
+    on_disk = {path.name for path in RESULTS.iterdir() if path.is_file()}
+    return sorted(on_disk - published)
 
 
 def build(descriptors: dict, resources: list[dict]) -> list[dict]:
@@ -85,6 +101,9 @@ def main() -> int:
     # spellings of one licence make a diff between the repository and the page look like
     # a defect when it is not.
     meta["licenses"] = [{"name": descriptors["licence"]}]
+    missing = unpublished(meta["resources"])
+    if missing:
+        raise MetadataError(f"in {RESULTS.name}/ but published nowhere: {missing}")
     meta["resources"] = build(descriptors, meta["resources"])
 
     TARGET.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
